@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RetireRight.Cli/RetireRight.Cli.csproj" />
+    <Project Path="src/RetireRight.Core/RetireRight.Core.csproj" />
+    <Project Path="src/RetireRight.Export/RetireRight.Export.csproj" />
+    <Project Path="src/RetireRight.Infrastructure/RetireRight.Infrastructure.csproj" />
+    <Project Path="src/RetireRight.MetricsEngine/RetireRight.MetricsEngine.csproj" />
+    <Project Path="src/RetireRight.Scrapers/RetireRight.Scrapers.csproj" />
+    <Project Path="src/RetireRight.Screening/RetireRight.Screening.csproj" />
+  </Folder>
+</Solution>

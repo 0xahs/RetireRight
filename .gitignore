@@ -1,0 +1,41 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.sln.iml
+
+## Claude Code (local settings only — CLAUDE.md is committed)
+.claude/
+
+## MCP config (contains project refs)
+.mcp.json
+
+## User secrets / local config
+appsettings.*.local.json
+appsettings.local.json
+secrets.json
+
+## Logs
+logs/
+*.log
+
+## Playwright browsers (install via script)
+playwright-browsers/
+
+## OS
+Thumbs.db
+.DS_Store
+
+## Exports (generated data)
+exports/
