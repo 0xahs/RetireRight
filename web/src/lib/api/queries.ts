@@ -6,6 +6,7 @@ import type {
   ScreenerRequestDto, ScreenerResultDto,
   MacroDto,
   HoldingDto, TransactionDto, PortfolioSummaryDto,
+  AddTransactionRequest, UpdateHoldingRequest,
   PipelineStatusDto, ScrapeRunDto, PagedResponseDto,
   ScheduleConfigDto,
 } from './types';
@@ -140,6 +141,42 @@ export function usePortfolioSummary() {
     queryKey: queryKeys.portfolioSummary,
     queryFn: () => api.get<PortfolioSummaryDto>('/api/portfolio/summary'),
     staleTime: 60_000,
+  });
+}
+
+export function useAddTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: AddTransactionRequest) =>
+      api.post<TransactionDto>('/api/portfolio/transactions', req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.holdings });
+      qc.invalidateQueries({ queryKey: queryKeys.transactions });
+      qc.invalidateQueries({ queryKey: queryKeys.portfolioSummary });
+    },
+  });
+}
+
+export function useUpdateHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, req }: { id: number; req: UpdateHoldingRequest }) =>
+      api.put<void>(`/api/portfolio/holdings/${id}`, req),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.holdings });
+      qc.invalidateQueries({ queryKey: queryKeys.portfolioSummary });
+    },
+  });
+}
+
+export function useDeleteHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.delete<void>(`/api/portfolio/holdings/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.holdings });
+      qc.invalidateQueries({ queryKey: queryKeys.portfolioSummary });
+    },
   });
 }
 

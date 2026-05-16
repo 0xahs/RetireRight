@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RetireRight.Core.DTOs;
 using RetireRight.Core.Interfaces;
+using RetireRight.Core.Models;
 using RetireRight.Infrastructure.Database;
 
 namespace RetireRight.Api.Endpoints;
@@ -11,14 +12,13 @@ public static class PortfolioEndpoints
     {
         var group = app.MapGroup("/api/portfolio").WithTags("Portfolio");
 
-        group.MapGet("/holdings", GetHoldingsAsync)
-            .WithName("GetPortfolioHoldings");
+        group.MapGet("/holdings", GetHoldingsAsync).WithName("GetPortfolioHoldings");
+        group.MapGet("/transactions", GetTransactionsAsync).WithName("GetPortfolioTransactions");
+        group.MapGet("/summary", GetSummaryAsync).WithName("GetPortfolioSummary");
 
-        group.MapGet("/transactions", GetTransactionsAsync)
-            .WithName("GetPortfolioTransactions");
-
-        group.MapGet("/summary", GetSummaryAsync)
-            .WithName("GetPortfolioSummary");
+        group.MapPost("/transactions", AddTransactionAsync).WithName("AddTransaction");
+        group.MapPut("/holdings/{id}", UpdateHoldingAsync).WithName("UpdateHolding");
+        group.MapDelete("/holdings/{id}", DeleteHoldingAsync).WithName("DeleteHolding");
     }
 
     private static async Task<IResult> GetHoldingsAsync(
@@ -154,5 +154,131 @@ public static class PortfolioEndpoints
         return Results.Ok(new PortfolioSummaryDto(
             totalCost, totalMarketValue, gainLoss, gainLossPct,
             annualIncome, portfolioYield, holdings.Count));
+    }
+
+    private static async Task<IResult> AddTransactionAsync(
+        AddTransactionRequest request,
+        IPortfolioRepository portfolioRepo,
+        IStockRepository stockRepo,
+        CancellationToken ct)
+    {
+        var symbol = request.Symbol.Trim().ToUpper();
+        var stock = await stockRepo.GetBySymbolAsync(symbol, ct);
+        if (stock is null) return Results.NotFound($"Symbol '{symbol}' not found in watchlist");
+
+        var action = request.Action.Trim().ToUpper();
+        if (action is not ("BUY" or "SELL"))
+            return Results.BadRequest("Action must be BUY or SELL");
+
+        if (request.Shares <= 0) return Results.BadRequest("Shares must be positive");
+        if (request.Price <= 0) return Results.BadRequest("Price must be positive");
+
+        var transactionDate = request.TransactionDate ?? DateOnly.FromDateTime(DateTime.Now);
+        var totalCost = request.Shares * request.Price + (request.Commission ?? 0);
+
+        var tx = new PortfolioTransaction
+        {
+            StockId = stock.Id,
+            Action = action,
+            Shares = request.Shares,
+            Price = request.Price,
+            TotalCost = totalCost,
+            Commission = request.Commission,
+            TransactionDate = transactionDate,
+            Platform = request.Platform,
+        };
+
+        await portfolioRepo.AddTransactionAsync(tx, ct);
+
+        // Update holding
+        var existing = await portfolioRepo.GetHoldingsAsync(ct)
+            .ContinueWith(t => t.Result.FirstOrDefault(h => h.StockId == stock.Id), ct);
+
+        if (action == "BUY")
+        {
+            if (existing is null)
+            {
+                await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
+                {
+                    StockId = stock.Id,
+                    Shares = request.Shares,
+                    AvgCost = request.Price,
+                    Platform = request.Platform,
+                    PurchaseDate = transactionDate,
+                }, ct);
+            }
+            else
+            {
+                var newTotalShares = existing.Shares + request.Shares;
+                var newAvgCost = (existing.Shares * existing.AvgCost + request.Shares * request.Price) / newTotalShares;
+                await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
+                {
+                    StockId = stock.Id,
+                    Shares = newTotalShares,
+                    AvgCost = Math.Round(newAvgCost, 4),
+                    Platform = existing.Platform ?? request.Platform,
+                    PurchaseDate = existing.PurchaseDate,
+                }, ct);
+            }
+        }
+        else // SELL
+        {
+            if (existing is null) return Results.BadRequest($"No holding found for {symbol}");
+            if (existing.Shares < request.Shares)
+                return Results.BadRequest($"Insufficient shares: holding {existing.Shares}, selling {request.Shares}");
+
+            var remainingShares = existing.Shares - request.Shares;
+            if (remainingShares == 0)
+            {
+                await portfolioRepo.DeactivateHoldingAsync(existing.Id, ct);
+            }
+            else
+            {
+                await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
+                {
+                    StockId = stock.Id,
+                    Shares = remainingShares,
+                    AvgCost = existing.AvgCost,
+                    Platform = existing.Platform,
+                    PurchaseDate = existing.PurchaseDate,
+                }, ct);
+            }
+        }
+
+        return Results.Created($"/api/portfolio/transactions/{tx.Id}", new TransactionDto(
+            tx.Id, stock.Symbol, stock.Name, tx.Action,
+            tx.Shares, tx.Price, tx.TotalCost, tx.Commission,
+            tx.TransactionDate, tx.Platform));
+    }
+
+    private static async Task<IResult> UpdateHoldingAsync(
+        int id,
+        UpdateHoldingRequest request,
+        IPortfolioRepository portfolioRepo,
+        CancellationToken ct)
+    {
+        var holdings = await portfolioRepo.GetHoldingsAsync(ct);
+        var holding = holdings.FirstOrDefault(h => h.Id == id);
+        if (holding is null) return Results.NotFound();
+
+        await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
+        {
+            StockId = holding.StockId,
+            Shares = request.Shares,
+            AvgCost = request.AvgCost,
+            Platform = request.Platform ?? holding.Platform,
+            PurchaseDate = request.PurchaseDate ?? holding.PurchaseDate,
+        }, ct);
+
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteHoldingAsync(
+        int id,
+        IPortfolioRepository portfolioRepo,
+        CancellationToken ct)
+    {
+        var deleted = await portfolioRepo.DeactivateHoldingAsync(id, ct);
+        return deleted ? Results.NoContent() : Results.NotFound();
     }
 }

@@ -1,5 +1,20 @@
 namespace RetireRight.Core.DTOs;
 
+public record AddTransactionRequest(
+    string Symbol,
+    string Action,
+    int Shares,
+    decimal Price,
+    decimal? Commission,
+    string? Platform,
+    DateOnly? TransactionDate);
+
+public record UpdateHoldingRequest(
+    int Shares,
+    decimal AvgCost,
+    string? Platform,
+    DateOnly? PurchaseDate);
+
 public record HoldingDto(
     int Id,
     string Symbol,

@@ -188,36 +188,60 @@ export interface HoldingDto {
   id: number;
   symbol: string;
   name: string;
+  sector: string;
   shares: number;
   avgCost: number;
   currentPrice: number | null;
   marketValue: number | null;
+  costBasis: number | null;
+  gainLoss: number | null;
   gainLossPct: number | null;
   yieldOnCost: number | null;
   annualIncome: number | null;
   nextExDate: string | null;
   safetyScore: number | null;
+  platform: string | null;
+  purchaseDate: string | null;
 }
 
 export interface TransactionDto {
   id: number;
   symbol: string;
+  name: string;
   action: string;
   shares: number;
   price: number;
   totalCost: number;
+  commission: number | null;
   transactionDate: string;
   platform: string | null;
 }
 
 export interface PortfolioSummaryDto {
-  totalInvested: number;
-  currentValue: number;
-  totalGainLoss: number;
-  totalGainLossPct: number;
-  annualDividendIncome: number;
-  portfolioYield: number;
+  totalCostBasis: number;
+  totalMarketValue: number | null;
+  totalGainLoss: number | null;
+  totalGainLossPct: number | null;
+  projectedAnnualIncome: number | null;
+  portfolioYield: number | null;
   holdingCount: number;
+}
+
+export interface AddTransactionRequest {
+  symbol: string;
+  action: 'BUY' | 'SELL';
+  shares: number;
+  price: number;
+  commission?: number;
+  platform?: string;
+  transactionDate?: string;
+}
+
+export interface UpdateHoldingRequest {
+  shares: number;
+  avgCost: number;
+  platform?: string;
+  purchaseDate?: string;
 }
 
 // ── Pipeline ──────────────────────────────────────────────────────────────────
