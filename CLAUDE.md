@@ -20,6 +20,8 @@ dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- run --source 
 dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- run --source Sarmaaya --symbols EFERT MCB  # specific symbols
 dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- export --format all     # export json + md
 dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- status                  # db health check
+dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- compute --all           # compute metrics for all stocks
+dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- compute --symbols MCB   # compute for specific stock
 ```
 
 ## EF Core Migrations
@@ -31,7 +33,7 @@ dotnet ef database update --startup-project ../RetireRight.Cli/RetireRight.Cli.c
 dotnet ef migrations add <Name> --startup-project ../RetireRight.Cli/RetireRight.Cli.csproj
 ```
 
-No migrations exist yet — tables are implied by the DbContext fluent configuration.
+Migration `AddFundamentalsOwnershipScrapeRuns` exists and is applied. Tables: stocks, daily_prices, dividends, stock_fundamentals, stock_ownerships, insider_transactions, index_levels, computed_metrics, raw_responses, scrape_runs, portfolio_holdings, portfolio_transactions.
 
 ## Architecture
 
@@ -62,8 +64,10 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 
 ## Configuration
 
-- `src/RetireRight.Cli/appsettings.json` — connection string, export path, watchlist symbols, data source rate limits
-- Environment variable prefix: `RETIRERIGHT_` (e.g., `RETIRERIGHT_Database__ConnectionString`)
+- `src/RetireRight.Cli/appsettings.json` — defaults to **localhost** PostgreSQL (`retireright_dev`), export path, watchlist symbols, data source rate limits
+- For Supabase (production): set env var `RETIRERIGHT_RetireRight__Database__ConnectionString=<supabase_connection_string>`
+- No `appsettings.local.json` or `appsettings.Production.json` — keep it simple, one file + optional env var override
+- JSONB columns (`Dictionary<string, decimal?>`) use explicit `HasConversion()` in DbContext — do NOT use `EnableDynamicJson()` (it silently drops keys on read)
 - Per-source `RateLimit` and `Retry` policies configured in `DataSources` array
 - Options pattern: `RetireRightOptions` → `DatabaseOptions`, `ExportOptions`, `WatchlistOptions`, `DataSourceOptions[]`, `PortfolioOptions`
 
@@ -76,6 +80,23 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 ## Anti-Bot Infrastructure (Scrapers)
 
 `RequestThrottler` (sliding window per-source), `RetryPolicy` (exponential backoff), `UserAgentRotator`, `StealthConfigurator` (Playwright headless evasion). Rate limits are configurable per data source — respect these when adding new scrapers.
+
+## Full Pipeline: Scrape → Store → Compute → Export
+
+```
+run --source Sarmaaya    → SarmaayaApi fetches 10 endpoints per stock → PersistAsync writes to 7 tables
+compute --all            → Loads fundamentals + prices + dividends → 6 calculators → computed_metrics table
+export --format all      → Reads computed_metrics → JSON + Markdown to exports folder
+```
+
+## Sarmaaya API Critical Patterns
+
+- **Base URL**: `https://beta-restapi.sarmaaya.pk`
+- **Placeholder data**: Time-series `data[0]` is JSON number (real), `data[1..5]` are often JSON strings with repeated placeholder values. Only trust `data[1]` as prev_year if it's a JSON number or differs from `data[2]`.
+- **Industry averages broken**: Returns `2.22` for all metrics across all sectors — code guards against this.
+- **Cash flow endpoint 404s**: No operating/free cash flow from Sarmaaya — blocks 7 metrics.
+- **Key normalization**: Display names → `NormalizeKey()` → prefixed snake_case (`ratio_*`, `income_*`, `bs_*`) → `SarmaayaKeyMapper.MapToStandard()` → `FundamentalKeys` constants.
+- **Fundamentals upsert**: Same source = REPLACE entire JSONB dict (clean slate). Different source = MERGE (accumulate).
 
 ## Export Data Flow
 
@@ -115,7 +136,7 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 
 | Source | URL Pattern | Method | Data Types |
 |--------|------------|--------|-----------|
-| **Sarmaaya** (implemented) | `sarmaaya.pk/stocks/{TICKER}` | Browser (Playwright) | Prices, basic fundamentals |
+| **Sarmaaya** (implemented) | `beta-restapi.sarmaaya.pk/api/stocks/*` | REST API | Prices, fundamentals (54 ratios + income + balance sheet), dividends, ownership, insiders, returns, price history, market indices. No cash flow statement (404). |
 | PSX Official | `dps.psx.com.pk/company/{TICKER}` | API/HTML | Official prices, corporate actions |
 | KSE Stocks | `ksestocks.com/BookClosures` | HTML | Book closures, dividends |
 | StockAnalysis | `stockanalysis.com/quote/psx/{TICKER}/` | HTML | Fundamentals, dividends, statistics |
@@ -125,30 +146,27 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 
 ## Development Phases
 
-**Phase 1 — Scaffolding (CURRENT — mostly complete)**
+**Phase 1 — Core Pipeline (COMPLETE)**
 - [x] Solution structure (7 projects + references + NuGet packages)
-- [x] Core: enums, models, interfaces, configuration
-- [x] Scrapers: anti-bot infra + Sarmaaya scraper
-- [x] Infrastructure: DbContext + 5 repositories
+- [x] Core: enums, models, interfaces, configuration, FundamentalKeys constants
+- [x] Scrapers: anti-bot infra + Sarmaaya API client (10 endpoints per stock)
+- [x] Infrastructure: DbContext + 10 repositories, EF migration applied
 - [x] Export: JSON + Markdown briefing exporters
-- [x] MetricsEngine: 6 calculators (Safety, Growth, Valuation, Health, Risk, Composite)
+- [x] MetricsEngine: 6 calculators (Safety, Growth, Valuation, Health, Risk, Composite) — 61/77 metrics for non-banks
 - [x] Screening: StockScreener + 5 presets
-- [x] CLI: Program.cs + DI + 3 commands (run, export, status)
-- [x] appsettings.json with full config
-- [ ] Supabase database setup + connection string
-- [ ] EF Core initial migration + database update
-- [ ] Playwright browser install
-- [ ] First successful scrape test (Sarmaaya → MCB price)
+- [x] CLI: Program.cs + DI + 4 commands (run, export, status, compute)
+- [x] Full 50-stock scrape → compute → export pipeline working
+- [x] Local PostgreSQL database with all tables populated
+- [x] Sarmaaya key mapper: all 54 ratio keys + income + balance sheet mapped
 
-**Phase 2 — Data Pipeline**
-- [ ] Additional scrapers: PsxOfficial, KseStocks, StockAnalysis
+**Phase 2 — Data Pipeline (NEXT)**
+- [ ] StockAnalysis scraper (unlocks cash flow data → 7 metrics)
 - [ ] Source failover chains (if Sarmaaya fails, try PsxOfficial)
-- [ ] Macro data scrapers (KSE-100, PKR/USD, Brent, SBP rate)
+- [ ] Macro data scrapers (PKR/USD, Brent, SBP rate — KSE-100 already done)
+- [ ] GrowthQualityCalculator (Category E — 20 metrics, data available)
 - [ ] Sector-specific metric calculators (Banking, E&P, Power, Fertilizer)
-- [ ] Long-term wealth metrics (Category M)
 
 **Phase 3 — Intelligence**
-- [ ] Composite score computation (post-processing pass after all calculators)
 - [ ] Alert engine (yield traps, payout > 100%, upcoming ex-dates)
 - [ ] Portfolio integration (import from Finqalab screenshots)
 - [ ] CGT calculator

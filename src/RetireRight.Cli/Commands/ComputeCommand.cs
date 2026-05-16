@@ -106,6 +106,12 @@ public static class ComputeCommand
                         }
                     }
 
+                    // Enrich fundamentals with derived values (DPS, market cap, bank revenue, etc.)
+                    var dividendPoints = dividends
+                        .Select(d => new DividendPoint(d.ExDate, d.Dps, d.DividendType))
+                        .ToList();
+                    FundamentalsEnricher.Enrich(fundamentals, dividendPoints, latestPrice?.Close, stock.Sector);
+
                     // Build MetricContext
                     var context = new MetricContext
                     {
@@ -116,11 +122,9 @@ public static class ComputeCommand
                         PriceHistory = priceHistory
                             .Select(p => new PricePoint(p.Date, p.Close, p.High, p.Low, p.Volume))
                             .ToList(),
-                        DividendHistory = dividends
-                            .Select(d => new DividendPoint(d.ExDate, d.Dps, d.DividendType))
-                            .ToList(),
+                        DividendHistory = dividendPoints,
                         Fundamentals = fundamentals,
-                        Sector = stock.Sector.ToString()
+                        Sector = stock.Sector
                     };
 
                     // Run all calculators
@@ -129,6 +133,11 @@ public static class ComputeCommand
                     // Compute composite scores
                     var (safety, growth, valuation, composite) =
                         CompositeScoreCalculator.ComputeScores(result.Metrics);
+
+                    // Compute opportunity score (post-processor — needs all metrics + context)
+                    var opportunityMetrics = OpportunityScorer.Score(result.Metrics, context);
+                    foreach (var (key, value) in opportunityMetrics)
+                        result.Metrics[key] = value;
 
                     // Determine signal
                     var signal = composite switch

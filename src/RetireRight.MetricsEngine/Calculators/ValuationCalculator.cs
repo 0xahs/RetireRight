@@ -39,16 +39,18 @@ public class ValuationCalculator : IMetricCalculator
         m["c4_ps_ratio"] = (price is not null && rps is not null && rps != 0)
             ? price / rps : null;
 
-        // C5. P/FCF Ratio
+        // C5. P/FCF Ratio (compute from per-share, fallback to source-provided)
         var fcfPerShare = f.GetValueOrDefault("fcf_per_share");
         m["c5_p_fcf_ratio"] = (price is not null && fcfPerShare is not null && fcfPerShare != 0)
-            ? price / fcfPerShare : null;
+            ? price / fcfPerShare
+            : f.GetValueOrDefault("p_fcf_ratio");
 
-        // C6. EV/EBITDA
+        // C6. EV/EBITDA (compute from raw, fallback to source-provided)
         var ev = f.GetValueOrDefault("enterprise_value");
         var ebitda = f.GetValueOrDefault("ebitda");
         m["c6_ev_ebitda"] = (ev is not null && ebitda is not null && ebitda != 0)
-            ? ev / ebitda : null;
+            ? ev / ebitda
+            : f.GetValueOrDefault("ev_to_ebitda");
 
         // C7. EV/Revenue
         m["c7_ev_revenue"] = (ev is not null && revenue is not null && revenue != 0)
@@ -74,45 +76,52 @@ public class ValuationCalculator : IMetricCalculator
         m["c11_earnings_yield"] = (eps is not null && price is not null && price != 0)
             ? (eps / price) * 100 : null;
 
-        // C12. ROE
+        // C12. ROE (compute from raw, fallback to source-provided)
         var netIncome = f.GetValueOrDefault("net_income");
         var equity = f.GetValueOrDefault("total_equity");
         m["c12_roe"] = (netIncome is not null && equity is not null && equity != 0)
-            ? (netIncome / equity) * 100 : null;
+            ? (netIncome / equity) * 100
+            : f.GetValueOrDefault("roe_pct");
 
-        // C13. ROA
+        // C13. ROA (compute from raw, fallback to source-provided)
         var totalAssets = f.GetValueOrDefault("total_assets");
         m["c13_roa"] = (netIncome is not null && totalAssets is not null && totalAssets != 0)
-            ? (netIncome / totalAssets) * 100 : null;
+            ? (netIncome / totalAssets) * 100
+            : f.GetValueOrDefault("roa_pct");
 
-        // C14. ROIC
+        // C14. ROIC (compute from raw, fallback to source-provided)
         var investedCapital = f.GetValueOrDefault("invested_capital");
         var nopat = f.GetValueOrDefault("nopat") ?? (f.GetValueOrDefault("operating_income") is { } opInc
             ? opInc * 0.71m  // Approximate after-tax (29% PKR corporate tax)
             : null);
         m["c14_roic"] = (nopat is not null && investedCapital is not null && investedCapital != 0)
-            ? (nopat / investedCapital) * 100 : null;
+            ? (nopat / investedCapital) * 100
+            : f.GetValueOrDefault("roic_pct");
 
-        // C15. Gross Margin
+        // C15. Gross Margin (compute from raw, fallback to source-provided)
         var grossProfit = f.GetValueOrDefault("gross_profit");
         m["c15_gross_margin"] = (grossProfit is not null && revenue is not null && revenue != 0)
-            ? (grossProfit / revenue) * 100 : null;
+            ? (grossProfit / revenue) * 100
+            : f.GetValueOrDefault("gross_margin_pct");
 
-        // C16. Operating Margin
+        // C16. Operating Margin (compute from raw, fallback to source-provided)
         var opIncome = f.GetValueOrDefault("operating_income");
         m["c16_operating_margin"] = (opIncome is not null && revenue is not null && revenue != 0)
-            ? (opIncome / revenue) * 100 : null;
+            ? (opIncome / revenue) * 100
+            : f.GetValueOrDefault("operating_margin_pct");
 
-        // C17. Net Margin
+        // C17. Net Margin (compute from raw, fallback to source-provided)
         m["c17_net_margin"] = (netIncome is not null && revenue is not null && revenue != 0)
-            ? (netIncome / revenue) * 100 : null;
+            ? (netIncome / revenue) * 100
+            : f.GetValueOrDefault("net_margin_pct");
 
-        // C18. FCF Margin
+        // C18. FCF Margin (compute from raw, fallback to source-provided)
         m["c18_fcf_margin"] = (fcf is not null && revenue is not null && revenue != 0)
-            ? (fcf / revenue) * 100 : null;
+            ? (fcf / revenue) * 100
+            : f.GetValueOrDefault("fcf_margin_pct") is { } fcmPct ? fcmPct : null;
 
-        // C19. PEG Ratio (P/E / EPS Growth Rate)
-        var epsGrowth = f.GetValueOrDefault("eps_growth_rate");
+        // C19. PEG Ratio (P/E / EPS Growth Rate — use source-provided growth as fallback)
+        var epsGrowth = f.GetValueOrDefault("eps_growth_rate") ?? f.GetValueOrDefault("eps_growth_1y_pct");
         var pe = m["c1_pe_ratio"];
         m["c19_peg_ratio"] = (pe is not null && epsGrowth is not null && epsGrowth != 0)
             ? pe / epsGrowth : null;
@@ -135,6 +144,30 @@ public class ValuationCalculator : IMetricCalculator
 
         // C22. Market Cap
         m["c22_market_cap"] = marketCap;
+
+        // C23. Graham Number = sqrt(22.5 × EPS × BVPS)
+        // Benjamin Graham's intrinsic value estimate for defensive investors
+        decimal? grahamNumber = null;
+        if (eps is > 0 && bvps is > 0)
+        {
+            grahamNumber = (decimal)Math.Sqrt((double)(22.5m * eps.Value * bvps.Value));
+            m["c23_graham_number"] = grahamNumber;
+        }
+
+        // C24. Margin of Safety = (Graham Number - Price) / Graham Number × 100
+        // Positive = stock is cheap vs intrinsic value, negative = expensive
+        m["c24_margin_of_safety"] = (grahamNumber is > 0 && price is > 0)
+            ? ((grahamNumber - price) / grahamNumber) * 100 : null;
+
+        // C25. PE vs Industry Average
+        var industryPe = f.GetValueOrDefault("industry_pe");
+        m["c25_pe_vs_industry"] = (m["c1_pe_ratio"] is { } peVal and > 0 && industryPe is > 0)
+            ? ((peVal - industryPe.Value) / industryPe.Value) * 100 : null;
+
+        // C26. Yield vs Industry Average
+        var industryYield = f.GetValueOrDefault("industry_dividend_yield");
+        m["c26_yield_vs_industry"] = (m["c9_dividend_yield"] is { } yieldVal && industryYield is > 0)
+            ? ((yieldVal - industryYield.Value) / industryYield.Value) * 100 : null;
 
         return Task.FromResult(m);
     }

@@ -37,6 +37,10 @@ public record StockSnapshot
     public Dictionary<string, decimal?> Metrics { get; init; } = new();
     public decimal? CompositeScore { get; init; }
     public string? Signal { get; init; }
+
+    // Opportunity detection
+    public decimal? OpportunityScore { get; init; }
+    public List<string> OpportunityFlags { get; init; } = [];
 }
 
 public record DividendSnapshot

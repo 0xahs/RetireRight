@@ -97,7 +97,7 @@ public class SarmaayaBrowser : BrowserDataClient
             var aboutData = FindIntercepted<SarmaayaEnvelope<SarmaayaAboutResponse>>(
                 intercepted, "/api/stocks/about");
 
-            var ownershipData = FindIntercepted<SarmaayaEnvelope<SarmaayaOwnershipResponse>>(
+            var ownershipData = FindIntercepted<SarmaayaEnvelope<List<SarmaayaOwnershipEntry>>>(
                 intercepted, "/api/stocks/ownership/");
 
             var insiderData = FindIntercepted<SarmaayaEnvelope<List<SarmaayaInsiderEntry>>>(
@@ -132,9 +132,9 @@ public class SarmaayaBrowser : BrowserDataClient
                 }
 
                 var ownership = new List<ScrapedOwnership>();
-                if (ownershipData is { Success: true, Response.EquityHolders.Count: > 0 })
+                if (ownershipData is { Success: true, Response.Count: > 0 })
                 {
-                    foreach (var h in ownershipData.Response.EquityHolders)
+                    foreach (var h in ownershipData.Response)
                     {
                         ownership.Add(new ScrapedOwnership
                         {
@@ -142,7 +142,7 @@ public class SarmaayaBrowser : BrowserDataClient
                             HolderType = h.HolderType,
                             InvestorType = h.InvestorType,
                             Shares = h.Shares,
-                            WeightPct = h.WeightPct
+                            WeightPct = h.WeightClose
                         });
                     }
                 }

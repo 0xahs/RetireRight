@@ -13,16 +13,18 @@ public class FinancialHealthCalculator : IMetricCalculator
         var m = new Dictionary<string, decimal?>();
         var f = ctx.Fundamentals;
 
-        // D1. Current Ratio
+        // D1. Current Ratio (compute from raw, fallback to source-provided)
         var currentAssets = f.GetValueOrDefault("current_assets");
         var currentLiabilities = f.GetValueOrDefault("current_liabilities");
         m["d1_current_ratio"] = (currentAssets is not null && currentLiabilities is not null && currentLiabilities != 0)
-            ? currentAssets / currentLiabilities : null;
+            ? currentAssets / currentLiabilities
+            : f.GetValueOrDefault("current_ratio");
 
-        // D2. Quick Ratio
+        // D2. Quick Ratio (compute from raw, fallback to source-provided)
         var inventory = f.GetValueOrDefault("inventory");
         m["d2_quick_ratio"] = (currentAssets is not null && inventory is not null && currentLiabilities is not null && currentLiabilities != 0)
-            ? (currentAssets - inventory) / currentLiabilities : null;
+            ? (currentAssets - inventory) / currentLiabilities
+            : f.GetValueOrDefault("quick_ratio");
 
         // D3. Debt-to-Assets
         var totalDebt = f.GetValueOrDefault("total_debt");
@@ -35,14 +37,17 @@ public class FinancialHealthCalculator : IMetricCalculator
         m["d4_equity_ratio"] = (equity is not null && totalAssets is not null && totalAssets != 0)
             ? equity / totalAssets : null;
 
-        // D5. Working Capital
+        // D5. Working Capital (needs raw balance sheet items — no ratio fallback)
         m["d5_working_capital"] = (currentAssets is not null && currentLiabilities is not null)
             ? currentAssets - currentLiabilities : null;
+        // If we have current_ratio but no raw items, we at least know if working capital is positive
+        m["d5_working_capital"] ??= (f.GetValueOrDefault("current_ratio") is > 1) ? 1m : null;
 
         // D6. Cash-to-Debt
         var cash = f.GetValueOrDefault("cash_and_equivalents");
         m["d6_cash_to_debt"] = (cash is not null && totalDebt is not null && totalDebt != 0)
-            ? cash / totalDebt : null;
+            ? cash / totalDebt
+            : f.GetValueOrDefault("cash_to_debt_ratio");
 
         // D7. Asset Turnover = Revenue / Total Assets
         var revenue = f.GetValueOrDefault("revenue");

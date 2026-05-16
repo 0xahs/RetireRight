@@ -60,6 +60,9 @@ public class RiskCalculator : IMetricCalculator
                 ? (decimal)((annualReturn - riskFreeRate) / downsideDev) : null;
         }
 
+        // F10. RSI (14-day Relative Strength Index)
+        m["f10_rsi_14"] = ComputeRsi(prices, 14);
+
         // F7. Average Volume (last 20 days)
         var last20 = prices.TakeLast(20).ToList();
         m["f7_avg_volume_20d"] = last20.Where(p => p.Volume.HasValue).Any()
@@ -82,6 +85,41 @@ public class RiskCalculator : IMetricCalculator
         }
 
         return Task.FromResult(m);
+    }
+
+    /// <summary>
+    /// Wilder's smoothed RSI. Values below 30 = oversold (potential buy), above 70 = overbought.
+    /// </summary>
+    private static decimal? ComputeRsi(List<PricePoint> prices, int period)
+    {
+        if (prices.Count < period + 1) return null;
+
+        var gains = new List<double>();
+        var losses = new List<double>();
+
+        for (var i = 1; i < prices.Count; i++)
+        {
+            var change = (double)(prices[i].Close - prices[i - 1].Close);
+            gains.Add(change > 0 ? change : 0);
+            losses.Add(change < 0 ? -change : 0);
+        }
+
+        if (gains.Count < period) return null;
+
+        // Initial average using SMA
+        var avgGain = gains.Take(period).Average();
+        var avgLoss = losses.Take(period).Average();
+
+        // Wilder smoothing for remaining periods
+        for (var i = period; i < gains.Count; i++)
+        {
+            avgGain = (avgGain * (period - 1) + gains[i]) / period;
+            avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+        }
+
+        if (avgLoss == 0) return 100m; // No losses → RSI = 100
+        var rs = avgGain / avgLoss;
+        return (decimal)(100 - (100 / (1 + rs)));
     }
 
     private static decimal ComputeMaxDrawdown(List<PricePoint> prices)

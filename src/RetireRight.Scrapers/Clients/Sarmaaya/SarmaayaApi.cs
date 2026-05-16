@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using RetireRight.Core.Configuration;
@@ -28,9 +29,13 @@ public class SarmaayaApi : ApiClient
     public SarmaayaApi(
         ILogger<SarmaayaApi> logger,
         RetryPolicy retryPolicy,
-        DataSourceOptions sourceConfig)
+        DataSourceOptions sourceConfig,
+        string? accessToken = null)
         : base(SarmaayaApiBaseUrl, logger, retryPolicy, sourceConfig)
     {
+        if (accessToken is not null)
+            Http.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", accessToken);
     }
 
     public override async Task<ScrapedStockData?> FetchAsync(string symbol, CancellationToken ct)
@@ -222,19 +227,43 @@ public class SarmaayaApi : ApiClient
 
         foreach (var (displayName, metric) in result.Data.Response)
         {
-            var latest = metric.Data?.FirstOrDefault();
-            if (latest is null) continue;
+            if (metric.Data is not { Count: > 0 }) continue;
 
-            var metricKey = $"{keyPrefix}_{NormalizeKey(displayName)}";
+            var normalizedName = NormalizeKey(displayName);
+            var metricKey = $"{keyPrefix}_{normalizedName}";
 
-            if (latest.Value.ValueKind == JsonValueKind.Number)
+            // Extract latest value (data[0])
+            var latest = metric.Data[0];
+            var latestVal = ParseFundamentalValue(latest.Value);
+            if (latestVal is not null)
+                fundamentals[metricKey] = latestVal;
+
+            // Extract prior-year value (data[1]) for growth calculations.
+            // Sarmaaya fills historical years with placeholder strings — data[0] is a JSON number
+            // but data[1..5] are JSON strings with a repeated dummy value (e.g. "88.516").
+            // Only trust data[1] if it's a JSON number (real) or if it differs from data[2+]
+            // (proving it's not a repeated placeholder).
+            if (periodicity == "ANN" && metric.Data.Count >= 2)
             {
-                fundamentals[metricKey] = latest.Value.GetDecimal();
-            }
-            else if (latest.Value.ValueKind == JsonValueKind.String &&
-                     decimal.TryParse(latest.Value.GetString(), out var parsed))
-            {
-                fundamentals[metricKey] = parsed;
+                var prevEntry = metric.Data[1];
+                if (prevEntry.Value.ValueKind == JsonValueKind.Number)
+                {
+                    // JSON number = real data from Sarmaaya
+                    var prevVal = prevEntry.Value.GetDecimal();
+                    if (prevVal != latestVal)
+                        fundamentals[$"{metricKey}_prev_year"] = prevVal;
+                }
+                else if (prevEntry.Value.ValueKind == JsonValueKind.String
+                         && metric.Data.Count >= 3)
+                {
+                    // String value — only trust if it differs from data[2] (not a repeated placeholder)
+                    var prevStr = prevEntry.Value.GetString();
+                    var nextStr = metric.Data[2].Value.ValueKind == JsonValueKind.String
+                        ? metric.Data[2].Value.GetString()
+                        : metric.Data[2].Value.ToString();
+                    if (prevStr != nextStr && decimal.TryParse(prevStr, out var prevVal) && prevVal != latestVal)
+                        fundamentals[$"{metricKey}_prev_year"] = prevVal;
+                }
             }
         }
     }
@@ -244,26 +273,34 @@ public class SarmaayaApi : ApiClient
         List<RawResponseEntry> rawResponses, CancellationToken ct)
     {
         var endpoint = $"/api/stocks/fundamentals/industry/{isin}";
-        var result = await GetJsonAsync<SarmaayaEnvelope<Dictionary<string, SarmaayaFundamentalMetric>>>(
+        var result = await GetJsonAsync<SarmaayaEnvelope<SarmaayaIndustryResponse>>(
             endpoint, JsonOptions, ct);
 
-        if (result?.Data?.Response is null)
+        if (result?.Data?.Response?.IndustryAverages is not { Count: > 0 })
             return;
 
         AddRaw(rawResponses, endpoint, result);
 
-        foreach (var (displayName, metric) in result.Data.Response)
+        // Sarmaaya sometimes returns placeholder data (all values identical, e.g. 2.22).
+        // Detect and skip if all averages share the same value.
+        var distinctValues = result.Data.Response.IndustryAverages
+            .Where(a => a.Average is not null)
+            .Select(a => a.Average!.Value)
+            .Distinct()
+            .Take(2)
+            .ToList();
+        if (distinctValues.Count <= 1)
         {
-            var latest = metric.Data?.FirstOrDefault();
-            if (latest is null) continue;
+            Logger.LogWarning("Industry averages for {Isin} appear to be placeholder data (all values = {Value}), skipping",
+                isin, distinctValues.FirstOrDefault());
+            return;
+        }
 
-            var metricKey = $"industry_{NormalizeKey(displayName)}";
-
-            if (latest.Value.ValueKind == JsonValueKind.Number)
-                fundamentals[metricKey] = latest.Value.GetDecimal();
-            else if (latest.Value.ValueKind == JsonValueKind.String &&
-                     decimal.TryParse(latest.Value.GetString(), out var parsed))
-                fundamentals[metricKey] = parsed;
+        foreach (var avg in result.Data.Response.IndustryAverages)
+        {
+            if (avg.Name is null || avg.Average is null) continue;
+            var metricKey = $"industry_{NormalizeKey(avg.Name)}";
+            fundamentals[metricKey] = avg.Average;
         }
     }
 
@@ -283,7 +320,9 @@ public class SarmaayaApi : ApiClient
 
         foreach (var entry in result.Data.Response)
         {
-            if (!DateOnly.TryParse(entry.Date, out var date)) continue;
+            // API returns ISO 8601 datetime ("2026-03-19T00:00:00.000Z") — parse as DateTime, extract date
+            if (!DateTime.TryParse(entry.Date, out var dt)) continue;
+            var date = DateOnly.FromDateTime(dt);
 
             history.Add(new ScrapedPriceEntry
             {
@@ -294,7 +333,7 @@ public class SarmaayaApi : ApiClient
             });
         }
 
-        Logger.LogDebug("Fetched {Count} price history entries for {Symbol}", history.Count, symbol);
+        Logger.LogInformation("Fetched {Count} price history entries for {Symbol}", history.Count, symbol);
         return history;
     }
 
@@ -303,16 +342,17 @@ public class SarmaayaApi : ApiClient
     {
         var owners = new List<ScrapedOwnership>();
 
+        // API returns response as a direct array, not wrapped in { equityHolders: [...] }
         var endpoint = $"/api/stocks/ownership/equity-holders/{isin}";
-        var result = await GetJsonAsync<SarmaayaEnvelope<SarmaayaOwnershipResponse>>(
+        var result = await GetJsonAsync<SarmaayaEnvelope<List<SarmaayaOwnershipEntry>>>(
             endpoint, JsonOptions, ct);
 
-        if (result?.Data?.Response?.EquityHolders is not { Count: > 0 })
+        if (result?.Data?.Response is not { Count: > 0 })
             return owners;
 
         AddRaw(rawResponses, endpoint, result);
 
-        foreach (var h in result.Data.Response.EquityHolders)
+        foreach (var h in result.Data.Response)
         {
             owners.Add(new ScrapedOwnership
             {
@@ -320,11 +360,11 @@ public class SarmaayaApi : ApiClient
                 HolderType = h.HolderType,
                 InvestorType = h.InvestorType,
                 Shares = h.Shares,
-                WeightPct = h.WeightPct
+                WeightPct = h.WeightClose
             });
         }
 
-        Logger.LogDebug("Fetched {Count} equity holders for ISIN {Isin}", owners.Count, isin);
+        Logger.LogInformation("Fetched {Count} equity holders for ISIN {Isin}", owners.Count, isin);
         return owners;
     }
 
@@ -468,11 +508,29 @@ public class SarmaayaApi : ApiClient
 
     private static string NormalizeKey(string displayName) =>
         displayName.ToLowerInvariant()
+            .Replace(" - ", "_")
+            .Replace(" & ", "_and_")
+            .Replace("&", "_and_")
             .Replace(" ", "_")
             .Replace("/", "_")
             .Replace("'", "")
+            .Replace("\u2019", "") // right single quotation mark (Shareholders' Equity)
             .Replace("(", "")
-            .Replace(")", "");
+            .Replace(")", "")
+            .Replace("%", "pct")
+            .Replace("-", "_")     // "Short-Term" → "short_term"
+            .Replace("--", "_")
+            .TrimEnd('_');
+
+    private static decimal? ParseFundamentalValue(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Number)
+            return value.GetDecimal();
+        if (value.ValueKind == JsonValueKind.String &&
+            decimal.TryParse(value.GetString(), out var parsed))
+            return parsed;
+        return null;
+    }
 
     private static DateOnly? ParseDate(string? dateStr)
     {

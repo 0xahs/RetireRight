@@ -14,6 +14,8 @@ using RetireRight.Scrapers.Sources;
 using Serilog;
 
 // Build configuration
+// Config loading order: base → environment-specific → env vars
+// appsettings.json defaults to localhost. Production overrides via appsettings.Production.json or env vars.
 var config = new ConfigurationBuilder()
     .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("appsettings.json", optional: false)
@@ -49,9 +51,8 @@ services.AddLogging(builder =>
     builder.AddSerilog(dispose: true);
 });
 
-// Database
-services.AddDbContext<RetireRightDbContext>(opts =>
-    opts.UseNpgsql(rrOptions.Database.ConnectionString));
+// Database — JSONB columns use HasConversion() in DbContext for reliable serialization
+services.AddDbContext<RetireRightDbContext>(opts => opts.UseNpgsql(rrOptions.Database.ConnectionString));
 
 // Repositories
 services.AddScoped<IStockRepository, StockRepository>();
@@ -91,6 +92,16 @@ foreach (var sourceConfig in rrOptions.DataSources.Where(ds => ds.Enabled))
                 sp.GetRequiredService<IInsiderTransactionRepository>(),
                 sp.GetRequiredService<IIndexLevelRepository>()));
             break;
+
+        case "stockanalysis":
+            services.AddTransient<IScraper>(sp => new StockAnalysisScraper(
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger<StockAnalysisScraper>(),
+                sp.GetRequiredService<RequestThrottler>(),
+                sp.GetRequiredService<RetryPolicy>(),
+                sourceConfig,
+                sp.GetRequiredService<IStockRepository>(),
+                sp.GetRequiredService<IFundamentalsRepository>()));
+            break;
     }
 }
 
@@ -100,6 +111,7 @@ services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.Metr
 services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.MetricsEngine.Calculators.ValuationCalculator>();
 services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.MetricsEngine.Calculators.FinancialHealthCalculator>();
 services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.MetricsEngine.Calculators.RiskCalculator>();
+services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.MetricsEngine.Calculators.BankingCalculator>();
 services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.MetricsEngine.Calculators.CompositeScoreCalculator>();
 services.AddScoped<RetireRight.MetricsEngine.MetricsEngine>();
 

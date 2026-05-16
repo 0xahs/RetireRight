@@ -77,10 +77,13 @@ public class SarmaayaScraper : BaseScraper
             ? request.Symbols
             : (await _stockRepo.GetWatchlistAsync(ct)).Select(s => s.Symbol).ToArray();
 
+        // Authenticate — get JWT for locked financial endpoints
+        var token = await SarmaayaAuth.GetTokenAsync(SourceConfig.Credentials, Logger, ct);
+
         // Build fallback chain: API (fast, priority 1) → Browser (slow, priority 10)
         var apiClient = new SarmaayaApi(
             _loggerFactory.CreateLogger<SarmaayaApi>(),
-            RetryPolicy, SourceConfig);
+            RetryPolicy, SourceConfig, token?.AccessToken);
 
         _chain = new FallbackChain(
         [
@@ -265,6 +268,14 @@ public class SarmaayaScraper : BaseScraper
                 foreach (var (key, value) in industryAvgs)
                     annStandard[key] = value;
 
+                // Fold returns into ANN fundamentals (e.g. return_1w, return_1m, etc.)
+                foreach (var (period, val) in data.Returns)
+                    annStandard[$"return_{period}"] = val;
+
+                // Store announcement count as metadata
+                if (data.Announcements.Count > 0)
+                    annStandard["announcement_count_6m"] = data.Announcements.Count;
+
                 await _fundamentalsRepo.UpsertAsync(new StockFundamental
                 {
                     StockId = stock.Id,
@@ -348,7 +359,7 @@ public class SarmaayaScraper : BaseScraper
     {
         await using var apiClient = new SarmaayaApi(
             _loggerFactory.CreateLogger<SarmaayaApi>(),
-            RetryPolicy, SourceConfig);
+            RetryPolicy, SourceConfig, accessToken: null);
 
         var result = await apiClient.FetchAsync("MCB", ct);
         return result is not null;

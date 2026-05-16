@@ -33,30 +33,29 @@ public class DividendGrowthCalculator : IMetricCalculator
         // B5. Payout Growth Stability (standard deviation of annual growth rates)
         m["b5_payout_growth_stability"] = ComputeGrowthStability(yearlyDps);
 
-        // B6. Revenue Growth (1Y)
+        // B6. Revenue Growth (1Y) — prefer source-provided (reliable), fallback to computed
         var f = ctx.Fundamentals;
         var rev = f.GetValueOrDefault("revenue");
         var revPrev = f.GetValueOrDefault("revenue_prev_year");
-        m["b6_revenue_growth_1y"] = (rev is not null && revPrev is not null && revPrev != 0)
-            ? ((rev - revPrev) / Math.Abs(revPrev.Value)) * 100 : null;
+        m["b6_revenue_growth_1y"] = f.GetValueOrDefault("revenue_growth_1y_pct")
+            ?? ComputeYoyGrowth(rev, revPrev);
 
-        // B7. EPS Growth (1Y)
+        // B7. EPS Growth (1Y) — prefer source-provided
         var eps = f.GetValueOrDefault("eps");
         var epsPrev = f.GetValueOrDefault("eps_prev_year");
-        m["b7_eps_growth_1y"] = (eps is not null && epsPrev is not null && epsPrev != 0)
-            ? ((eps - epsPrev) / Math.Abs(epsPrev.Value)) * 100 : null;
+        m["b7_eps_growth_1y"] = f.GetValueOrDefault("eps_growth_1y_pct")
+            ?? ComputeYoyGrowth(eps, epsPrev);
 
-        // B8. FCF Growth (1Y)
+        // B8. FCF Growth (1Y) — computed only (no source-provided)
         var fcf = f.GetValueOrDefault("free_cash_flow");
         var fcfPrev = f.GetValueOrDefault("fcf_prev_year");
-        m["b8_fcf_growth_1y"] = (fcf is not null && fcfPrev is not null && fcfPrev != 0)
-            ? ((fcf - fcfPrev) / Math.Abs(fcfPrev.Value)) * 100 : null;
+        m["b8_fcf_growth_1y"] = ComputeYoyGrowth(fcf, fcfPrev);
 
-        // B9. Book Value Growth (1Y)
+        // B9. Book Value Growth (1Y) — prefer source equity growth, fallback to computed
         var bvps = f.GetValueOrDefault("book_value_per_share");
-        var bvpsPrev = f.GetValueOrDefault("bvps_prev_year");
-        m["b9_bvps_growth_1y"] = (bvps is not null && bvpsPrev is not null && bvpsPrev != 0)
-            ? ((bvps - bvpsPrev) / Math.Abs(bvpsPrev.Value)) * 100 : null;
+        var bvpsPrev = f.GetValueOrDefault("book_value_per_share_prev_year");
+        m["b9_bvps_growth_1y"] = f.GetValueOrDefault("equity_growth_1y_pct")
+            ?? ComputeYoyGrowth(bvps, bvpsPrev);
 
         // B10. Dividend Frequency (times per year)
         m["b10_dividend_frequency"] = yearlyDps.Count > 0
@@ -116,6 +115,18 @@ public class DividendGrowthCalculator : IMetricCalculator
         var avg = growthRates.Average();
         var variance = growthRates.Sum(r => Math.Pow(r - avg, 2)) / growthRates.Count;
         return (decimal)(Math.Sqrt(variance) * 100);
+    }
+
+    /// <summary>
+    /// Compute YoY growth %. Returns null if data looks like junk (> 10000% growth is likely placeholder data).
+    /// </summary>
+    private static decimal? ComputeYoyGrowth(decimal? current, decimal? previous)
+    {
+        if (current is null || previous is null || previous == 0) return null;
+        var growth = ((current - previous) / Math.Abs(previous.Value)) * 100;
+        // Sarmaaya API fills older time-series years with placeholder values,
+        // producing absurd growth rates. Cap at +/- 10000% as sanity check.
+        return Math.Abs(growth.Value) > 10000 ? null : growth;
     }
 }
 

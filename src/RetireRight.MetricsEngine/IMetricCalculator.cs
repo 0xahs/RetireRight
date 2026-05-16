@@ -1,3 +1,5 @@
+using RetireRight.Core.Enums;
+
 namespace RetireRight.MetricsEngine;
 
 /// <summary>
@@ -32,7 +34,7 @@ public class MetricContext
     public Dictionary<string, decimal?> Fundamentals { get; init; } = new();
 
     // Sector for sector-specific calculators
-    public string? Sector { get; init; }
+    public Sector? Sector { get; init; }
 }
 
 public record PricePoint(DateOnly Date, decimal Close, decimal? High, decimal? Low, long? Volume);

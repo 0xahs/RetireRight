@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Newtonsoft.Json;
 using RetireRight.Core.Models;
 
 namespace RetireRight.Infrastructure.Database;
@@ -20,6 +22,18 @@ public class RetireRightDbContext : DbContext
     public DbSet<StockFundamental> StockFundamentals => Set<StockFundamental>();
     public DbSet<StockOwnership> StockOwnerships => Set<StockOwnership>();
     public DbSet<InsiderTransaction> InsiderTransactions => Set<InsiderTransaction>();
+
+    // Npgsql's EnableDynamicJson() silently drops keys when deserializing JSONB → Dictionary<string, decimal?>.
+    // These explicit converters use Newtonsoft.Json for reliable round-trip serialization.
+    private static readonly ValueComparer<Dictionary<string, decimal?>> DictComparer = new(
+        (a, b) => JsonConvert.SerializeObject(a) == JsonConvert.SerializeObject(b),
+        d => JsonConvert.SerializeObject(d).GetHashCode(),
+        d => new Dictionary<string, decimal?>(d));
+
+    private static readonly ValueComparer<List<OwnershipEntry>> OwnersComparer = new(
+        (a, b) => JsonConvert.SerializeObject(a) == JsonConvert.SerializeObject(b),
+        d => JsonConvert.SerializeObject(d).GetHashCode(),
+        d => JsonConvert.DeserializeObject<List<OwnershipEntry>>(JsonConvert.SerializeObject(d)) ?? new List<OwnershipEntry>());
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -145,7 +159,11 @@ public class RetireRightDbContext : DbContext
             e.Property(c => c.Id).HasColumnName("id");
             e.Property(c => c.StockId).HasColumnName("stock_id");
             e.Property(c => c.ComputedDate).HasColumnName("computed_date");
-            e.Property(c => c.Metrics).HasColumnName("metrics").HasColumnType("jsonb");
+            e.Property(c => c.Metrics).HasColumnName("metrics").HasColumnType("jsonb")
+                .HasConversion(
+                    v => JsonConvert.SerializeObject(v),
+                    v => JsonConvert.DeserializeObject<Dictionary<string, decimal?>>(v) ?? new())
+                .Metadata.SetValueComparer(DictComparer);
             e.Property(c => c.CompositeScore).HasColumnName("composite_score").HasPrecision(5, 2);
             e.Property(c => c.DividendSafetyScore).HasColumnName("dividend_safety_score").HasPrecision(5, 2);
             e.Property(c => c.DividendGrowthScore).HasColumnName("dividend_growth_score").HasPrecision(5, 2);
@@ -237,11 +255,15 @@ public class RetireRightDbContext : DbContext
             e.Property(f => f.ScrapedDate).HasColumnName("scraped_date");
             e.Property(f => f.Periodicity).HasColumnName("periodicity").HasMaxLength(5).IsRequired();
             e.Property(f => f.Source).HasColumnName("source").HasMaxLength(50).IsRequired();
-            e.Property(f => f.Data).HasColumnName("data").HasColumnType("jsonb");
+            e.Property(f => f.Data).HasColumnName("data").HasColumnType("jsonb")
+                .HasConversion(
+                    v => JsonConvert.SerializeObject(v),
+                    v => JsonConvert.DeserializeObject<Dictionary<string, decimal?>>(v) ?? new())
+                .Metadata.SetValueComparer(DictComparer);
             e.Property(f => f.ScrapeRunId).HasColumnName("scrape_run_id");
             e.Property(f => f.CreatedAt).HasColumnName("created_at");
             e.Property(f => f.UpdatedAt).HasColumnName("updated_at");
-            e.HasIndex(f => new { f.StockId, f.ScrapedDate, f.Periodicity }).IsUnique();
+            e.HasIndex(f => new { f.StockId, f.Periodicity, f.Source }).IsUnique();
             e.HasOne(f => f.Stock).WithMany().HasForeignKey(f => f.StockId);
             e.HasOne(f => f.ScrapeRun).WithMany().HasForeignKey(f => f.ScrapeRunId).OnDelete(DeleteBehavior.SetNull);
         });
@@ -255,7 +277,11 @@ public class RetireRightDbContext : DbContext
             e.Property(o => o.StockId).HasColumnName("stock_id");
             e.Property(o => o.AsOfDate).HasColumnName("as_of_date");
             e.Property(o => o.Source).HasColumnName("source").HasMaxLength(50).IsRequired();
-            e.Property(o => o.Holders).HasColumnName("holders").HasColumnType("jsonb");
+            e.Property(o => o.Holders).HasColumnName("holders").HasColumnType("jsonb")
+                .HasConversion(
+                    v => JsonConvert.SerializeObject(v),
+                    v => JsonConvert.DeserializeObject<List<OwnershipEntry>>(v) ?? new List<OwnershipEntry>())
+                .Metadata.SetValueComparer(OwnersComparer);
             e.Property(o => o.ScrapeRunId).HasColumnName("scrape_run_id");
             e.Property(o => o.CreatedAt).HasColumnName("created_at");
             e.Property(o => o.UpdatedAt).HasColumnName("updated_at");

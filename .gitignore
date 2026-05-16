@@ -24,6 +24,8 @@ obj/
 ## User secrets / local config
 appsettings.*.local.json
 appsettings.local.json
+appsettings.Development.json
+appsettings.Production.json
 secrets.json
 
 ## Logs
@@ -32,6 +34,9 @@ logs/
 
 ## Playwright browsers (install via script)
 playwright-browsers/
+
+## Playwright MCP page snapshots (tool artefacts, not source)
+.playwright-mcp/
 
 ## OS
 Thumbs.db

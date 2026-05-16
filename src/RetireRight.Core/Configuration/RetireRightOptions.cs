@@ -38,6 +38,13 @@ public class DataSourceOptions
     public RateLimitOptions RateLimit { get; set; } = new();
     public RetryOptions Retry { get; set; } = new();
     public ProxyOptions Proxy { get; set; } = new();
+    public CredentialsOptions Credentials { get; set; } = new();
+}
+
+public class CredentialsOptions
+{
+    public string? Email { get; set; }
+    public string? Password { get; set; }
 }
 
 public class RateLimitOptions

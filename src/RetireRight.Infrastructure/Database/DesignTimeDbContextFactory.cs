@@ -8,10 +8,11 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<RetireRigh
 {
     public RetireRightDbContext CreateDbContext(string[] args)
     {
+        var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
         var config = new ConfigurationBuilder()
             .SetBasePath(Path.Combine(Directory.GetCurrentDirectory(), "..", "RetireRight.Cli"))
             .AddJsonFile("appsettings.json", optional: false)
-            .AddJsonFile("appsettings.local.json", optional: true)
+            .AddJsonFile($"appsettings.{environment}.json", optional: true)
             .AddEnvironmentVariables("RETIRERIGHT_")
             .Build();
 

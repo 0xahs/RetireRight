@@ -47,6 +47,26 @@ public class BriefingExporter : IExporter
         }
         sb.AppendLine();
 
+        // Top Opportunities
+        var opportunities = data.Stocks
+            .Where(s => s.OpportunityScore >= 50)
+            .OrderByDescending(s => s.OpportunityScore)
+            .Take(10)
+            .ToList();
+        if (opportunities.Count > 0)
+        {
+            sb.AppendLine("## Buy Opportunities");
+            sb.AppendLine("| Symbol | Price | Opp Score | Composite | Yield | Flags |");
+            sb.AppendLine("|--------|------:|----------:|----------:|------:|-------|");
+            foreach (var s in opportunities)
+            {
+                var yield = s.Metrics.GetValueOrDefault("c9_dividend_yield");
+                var flags = string.Join(", ", s.OpportunityFlags.Take(3));
+                sb.AppendLine($"| {s.Symbol} | {s.Price:N2} | {s.OpportunityScore:N0} | {s.CompositeScore:N0} | {yield:N1}% | {flags} |");
+            }
+            sb.AppendLine();
+        }
+
         // Upcoming dividends
         if (data.Dividends.Count > 0)
         {
@@ -68,8 +88,10 @@ public class BriefingExporter : IExporter
             {
                 var icon = a.Severity switch
                 {
-                    "high" => "!!",
-                    "medium" => "!",
+                    "critical" => "!!",
+                    "warning" => "!",
+                    "actionable" => "+",
+                    "info" => "i",
                     _ => "-"
                 };
                 sb.AppendLine($"- [{icon}] {a.Message}");

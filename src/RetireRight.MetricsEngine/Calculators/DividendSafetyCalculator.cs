@@ -39,19 +39,21 @@ public class DividendSafetyCalculator : IMetricCalculator
         m["a5_fcf_coverage"] = (fcf is not null && divPaid is not null && divPaid != 0)
             ? fcf / divPaid : null;
 
-        // A6. Interest Coverage = EBIT / Interest Expense
+        // A6. Interest Coverage = EBIT / Interest Expense (fallback to source-provided)
         var ebit = f.GetValueOrDefault("ebit") ?? f.GetValueOrDefault("operating_income");
         var interest = f.GetValueOrDefault("interest_expense");
         m["a6_interest_coverage"] = (ebit is not null && interest is not null && interest != 0)
-            ? ebit / Math.Abs(interest.Value) : null;
+            ? ebit / Math.Abs(interest.Value)
+            : f.GetValueOrDefault("interest_coverage_ratio");
 
-        // A7. Debt-to-Equity = Total Debt / Total Equity
+        // A7. Debt-to-Equity = Total Debt / Total Equity (fallback to source-provided)
         var totalDebt = f.GetValueOrDefault("total_debt");
         var totalEquity = f.GetValueOrDefault("total_equity");
         m["a7_debt_to_equity"] = (totalDebt is not null && totalEquity is not null && totalEquity != 0)
-            ? totalDebt / totalEquity : null;
+            ? totalDebt / totalEquity
+            : f.GetValueOrDefault("debt_to_equity_ratio") is { } deRatio ? deRatio / 100m : null;
 
-        // A8. Debt-to-EBITDA
+        // A8. Debt-to-EBITDA (can derive from EV/EBITDA if we have EV)
         var ebitda = f.GetValueOrDefault("ebitda");
         m["a8_debt_to_ebitda"] = (totalDebt is not null && ebitda is not null && ebitda != 0)
             ? totalDebt / ebitda : null;

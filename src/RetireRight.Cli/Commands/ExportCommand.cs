@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Interfaces;
 using RetireRight.Infrastructure.Database;
+using RetireRight.MetricsEngine;
 using Microsoft.EntityFrameworkCore;
 
 namespace RetireRight.Cli.Commands;
@@ -96,6 +97,10 @@ public static class ExportCommand
             if (price is not null && (latestPriceTime is null || price.CreatedAt > latestPriceTime))
                 latestPriceTime = price.CreatedAt;
 
+            var metricsDict = metrics?.Metrics ?? new Dictionary<string, decimal?>();
+            var opportunityScore = metricsDict.GetValueOrDefault("o6_opportunity_score");
+            var opportunityFlags = OpportunityScorer.DecodeFlags(metricsDict.GetValueOrDefault("o7_flags"));
+
             stockSnapshots.Add(new StockSnapshot
             {
                 Symbol = stock.Symbol,
@@ -104,9 +109,11 @@ public static class ExportCommand
                 Price = price?.Close,
                 ChangePct = price?.ChangePct,
                 Volume = price?.Volume,
-                Metrics = metrics?.Metrics ?? new Dictionary<string, decimal?>(),
+                Metrics = metricsDict,
                 CompositeScore = metrics?.CompositeScore,
-                Signal = metrics?.Signal.ToString()
+                Signal = metrics?.Signal.ToString(),
+                OpportunityScore = opportunityScore,
+                OpportunityFlags = opportunityFlags
             });
         }
 
@@ -235,6 +242,31 @@ public static class ExportCommand
                 Symbol = div.Symbol,
                 Message = $"{div.Symbol}: Ex-date in {div.DaysUntilEx} day(s) on {div.ExDate:yyyy-MM-dd} — last buy date {div.LastBuyDate:yyyy-MM-dd}, DPS Rs. {div.Dps:F2}",
                 Severity = "info"
+            });
+        }
+
+        // Opportunity alerts — high opportunity score stocks
+        foreach (var stock in stocks.Where(s => s.OpportunityScore >= 70))
+        {
+            var flags = string.Join(", ", stock.OpportunityFlags);
+            alerts.Add(new AlertSnapshot
+            {
+                Type = "BuyOpportunity",
+                Symbol = stock.Symbol,
+                Message = $"{stock.Symbol}: Opportunity score {stock.OpportunityScore:F0}/100 — {flags}",
+                Severity = "actionable"
+            });
+        }
+
+        // Overbought warnings
+        foreach (var stock in stocks.Where(s => s.OpportunityFlags.Contains("OVERBOUGHT")))
+        {
+            alerts.Add(new AlertSnapshot
+            {
+                Type = "Overbought",
+                Symbol = stock.Symbol,
+                Message = $"{stock.Symbol}: RSI above 70 — may be overbought, consider waiting for pullback",
+                Severity = "warning"
             });
         }
 

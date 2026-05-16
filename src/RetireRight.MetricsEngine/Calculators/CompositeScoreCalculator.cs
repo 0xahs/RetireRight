@@ -74,13 +74,6 @@ public class CompositeScoreCalculator : IMetricCalculator
             count++;
         }
 
-        // Interest coverage: >5x = 100, 3-5x = 70, 1.5-3x = 40, <1.5x = 10
-        if (m.GetValueOrDefault("a6_interest_coverage") is { } intCover)
-        {
-            score += intCover switch { >= 5m => 100, >= 3m => 70, >= 1.5m => 40, _ => 10 };
-            count++;
-        }
-
         // Consecutive dividend years: 10+ = 100, 5-9 = 70, 3-4 = 40, <3 = 20
         if (m.GetValueOrDefault("a12_consecutive_div_years") is { } yrs)
         {
@@ -88,11 +81,49 @@ public class CompositeScoreCalculator : IMetricCalculator
             count++;
         }
 
-        // D/E: <0.5 = 100, 0.5-1 = 70, 1-2 = 40, >2 = 10
-        if (m.GetValueOrDefault("a7_debt_to_equity") is { } de)
+        // Banking gate: if H metrics are present, use bank-appropriate safety inputs
+        // instead of D/E and interest coverage (both meaningless for banks)
+        var isBanking = m.ContainsKey("h5_car");
+
+        if (isBanking)
         {
-            score += de switch { <= 0.5m => 100, <= 1m => 70, <= 2m => 40, _ => 10 };
-            count++;
+            // CAR: >20% = 100, 17-20% = 80, 14-17% = 60, 12-14% = 40, <12% = 10
+            if (m.GetValueOrDefault("h5_car") is { } car)
+            {
+                score += car switch { >= 20 => 100, >= 17 => 80, >= 14 => 60, >= 12 => 40, _ => 10 };
+                count++;
+            }
+
+            // Cost-to-Income: <40% = 100, 40-50% = 70, 50-60% = 40, >60% = 10
+            if (m.GetValueOrDefault("h2_cost_to_income") is { } cir)
+            {
+                score += cir switch { < 40 => 100, < 50 => 70, < 60 => 40, _ => 10 };
+                count++;
+            }
+
+            // NPL Ratio: <3% = 100, 3-6% = 70, 6-10% = 40, >10% = 10
+            if (m.GetValueOrDefault("h3_npl_ratio") is { } npl)
+            {
+                score += npl switch { < 3 => 100, < 6 => 70, < 10 => 40, _ => 10 };
+                count++;
+            }
+        }
+        else
+        {
+            // Non-banking: interest coverage and D/E apply normally
+            // Interest coverage: >5x = 100, 3-5x = 70, 1.5-3x = 40, <1.5x = 10
+            if (m.GetValueOrDefault("a6_interest_coverage") is { } intCover)
+            {
+                score += intCover switch { >= 5m => 100, >= 3m => 70, >= 1.5m => 40, _ => 10 };
+                count++;
+            }
+
+            // D/E: <0.5 = 100, 0.5-1 = 70, 1-2 = 40, >2 = 10
+            if (m.GetValueOrDefault("a7_debt_to_equity") is { } de)
+            {
+                score += de switch { <= 0.5m => 100, <= 1m => 70, <= 2m => 40, _ => 10 };
+                count++;
+            }
         }
 
         return count > 0 ? score / count : null;

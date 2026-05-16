@@ -45,11 +45,18 @@ public static class FundamentalKeys
     public const string AccountsPayable = "accounts_payable";
     public const string RetainedEarnings = "retained_earnings";
 
+    // ── Balance Sheet (additional) ─────────────────────────
+    public const string ShortTermDebt = "short_term_debt";
+
     // ── Per-Share ────────────────────────────────────────────
     public const string BookValuePerShare = "book_value_per_share";
     public const string SharesOutstanding = "shares_outstanding";
+    public const string FloatShares = "float_shares";
     public const string FcfPerShare = "fcf_per_share";
+    public const string CashFlowPerShare = "cash_flow_per_share";
+    public const string CashPerShare = "cash_per_share";
     public const string ForwardEps = "forward_eps";
+    public const string DilutedEps = "diluted_eps";
 
     // ── Market / Derived ─────────────────────────────────────
     public const string MarketCap = "market_cap";
@@ -57,6 +64,69 @@ public static class FundamentalKeys
     public const string InvestedCapital = "invested_capital";
     public const string Nopat = "nopat";
     public const string ShareBuybacks = "share_buybacks";
+
+    // ── Source-Provided Ratios (pre-computed by data source) ─
+    public const string PeRatio = "pe_ratio";
+    public const string PbRatio = "pb_ratio";
+    public const string PFcfRatio = "p_fcf_ratio";
+    public const string PsRatio = "ps_ratio";
+    public const string PtbvRatio = "ptbv_ratio";
+    public const string EvToSales = "ev_to_sales";
+    public const string EvToEbitda = "ev_to_ebitda";
+    public const string DividendYieldPct = "dividend_yield_pct";
+    public const string DividendPayoutRatio = "dividend_payout_ratio";
+    public const string RoePct = "roe_pct";
+    public const string RoaPct = "roa_pct";
+    public const string RoicPct = "roic_pct";
+    public const string TaxRate = "tax_rate";
+    public const string DebtToEquityRatio = "debt_to_equity_ratio";
+    public const string DebtToAssetsRatio = "debt_to_assets_ratio";
+    public const string DebtToCapitalRatio = "debt_to_capital_ratio";
+    public const string EquityToAssetsPct = "equity_to_assets_pct";
+    public const string CurrentRatio = "current_ratio";
+    public const string QuickRatio = "quick_ratio";
+    public const string InterestCoverageRatio = "interest_coverage_ratio";
+    public const string CashToDebtRatio = "cash_to_debt_ratio";
+
+    // ── Source-Provided Margins (pre-computed) ─────────────
+    public const string GrossMarginPct = "gross_margin_pct";
+    public const string OperatingMarginPct = "operating_margin_pct";
+    public const string NetMarginPct = "net_margin_pct";
+    public const string EbitdaMarginPct = "ebitda_margin_pct";
+    public const string FcfMarginPct = "fcf_margin_pct";
+
+    // ── Source-Provided Growth Rates ───────────────────────
+    public const string EpsGrowth1yPct = "eps_growth_1y_pct";
+    public const string RevenueGrowth1yPct = "revenue_growth_1y_pct";
+    public const string EquityGrowth1yPct = "equity_growth_1y_pct";
+
+    // ── Other Source-Provided ──────────────────────────────
+    public const string EarningYieldPct = "earning_yield_pct";
+    public const string CfroicPct = "cfroic_pct";
+
+    // ── Efficiency Ratios ────────────────────────────────
+    public const string AssetTurnover = "asset_turnover";
+    public const string InventoryTurnover = "inventory_turnover";
+    public const string DaysSalesOutstanding = "days_sales_outstanding";
+    public const string DaysSalesInInventory = "days_sales_in_inventory";
+    public const string DaysPayablesOutstanding = "days_payables_outstanding";
+    public const string CashConversionCycle = "cash_conversion_cycle";
+    public const string EffectiveInterestRate = "effective_interest_rate";
+    public const string GrahamValue = "graham_value";
+    public const string CostOfGoodsSoldToSales = "cogs_to_sales";
+
+    // ── Banking-Specific ────────────────────────────────────
+    public const string InterestIncome = "interest_income";
+    public const string NetInterestIncome = "net_interest_income";
+    public const string NonInterestIncome = "non_interest_income";
+    public const string NonInterestExpense = "non_interest_expense";
+    public const string ProvisionForLoanLosses = "provision_for_loan_losses";
+    public const string TotalDeposits = "total_deposits";
+    public const string NetLoans = "net_loans";
+    public const string TotalInvestments = "total_investments";
+    public const string NplRatio = "npl_ratio";
+    public const string Tier1Ratio = "tier1_ratio";
+    public const string CarRatio = "car_ratio";
 
     // ── Prior Year (for growth calculations) ─────────────────
     public const string RevenuePrevYear = "revenue_prev_year";

@@ -104,11 +104,8 @@ internal class SarmaayaFundamentalDataPoint
 }
 
 // ─── /api/stocks/ownership/equity-holders/{ISIN} ─────────────
-
-internal class SarmaayaOwnershipResponse
-{
-    public List<SarmaayaOwnershipEntry> EquityHolders { get; set; } = [];
-}
+// API returns response as a direct array of holders (not wrapped in an object).
+// Field "weightClose" = ownership percentage.
 
 internal class SarmaayaOwnershipEntry
 {
@@ -116,8 +113,7 @@ internal class SarmaayaOwnershipEntry
     public string? HolderType { get; set; }
     public string? InvestorType { get; set; }
     public long? Shares { get; set; }
-    [JsonPropertyName("weight_pct")]
-    public decimal? WeightPct { get; set; }
+    public decimal? WeightClose { get; set; }
 }
 
 // ─── /api/stocks/stock-insiders/{SYMBOL} ─────────────────────
@@ -143,7 +139,20 @@ internal class SarmaayaAnnouncementEntry
 }
 
 // ─── /api/stocks/fundamentals/industry/{ISIN} ────────────────
-// Returns same Dictionary<displayName, SarmaayaFundamentalMetric> shape as ratios/income
+// Returns { response: { industryAverages: [ { name, average, min, max } ] } }
+
+internal class SarmaayaIndustryResponse
+{
+    public List<SarmaayaIndustryAverage>? IndustryAverages { get; set; }
+}
+
+internal class SarmaayaIndustryAverage
+{
+    public string? Name { get; set; }
+    public decimal? Average { get; set; }
+    public decimal? Min { get; set; }
+    public decimal? Max { get; set; }
+}
 
 // ─── /api/stocks/peers/{sectorId} ────────────────────────────
 
