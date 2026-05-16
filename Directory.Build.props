@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Centrally pin EF Core and Npgsql to consistent versions across all projects.
+    Without this, projects that only have transitive EF Core dependencies resolve
+    to the minimum required version (10.0.4) while projects with direct EF Core
+    references resolve to the latest (10.0.8), causing CS1705 assembly conflicts.
+  -->
+  <ItemGroup>
+    <PackageReference Update="Microsoft.EntityFrameworkCore" Version="10.0.8" />
+    <PackageReference Update="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
+    <PackageReference Update="Microsoft.EntityFrameworkCore.Abstractions" Version="10.0.8" />
+    <PackageReference Update="Microsoft.EntityFrameworkCore.Analyzers" Version="10.0.8" />
+    <PackageReference Update="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
+  </ItemGroup>
+</Project>

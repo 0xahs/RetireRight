@@ -9,6 +9,7 @@ public class RetireRightOptions
     public WatchlistOptions Watchlist { get; set; } = new();
     public List<DataSourceOptions> DataSources { get; set; } = [];
     public PortfolioOptions Portfolio { get; set; } = new();
+    public SchedulerOptions Scheduler { get; set; } = new();
 }
 
 public class DatabaseOptions
@@ -75,4 +76,11 @@ public class PortfolioOptions
     public decimal DividendWhtRate { get; set; } = 0.15m;
     public decimal MonthlyInvestment { get; set; } = 15000m;
     public int RetirementHorizonYears { get; set; } = 15;
+}
+
+public class SchedulerOptions
+{
+    public string DailyRunTime { get; set; } = "06:00";
+    public bool Enabled { get; set; } = false;
+    public List<string> Jobs { get; set; } = ["scrape", "compute", "export"];
 }

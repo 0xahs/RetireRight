@@ -1,6 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/RetireRight.Cli/RetireRight.Cli.csproj" />
+    <Project Path="src/RetireRight.Api/RetireRight.Api.csproj" />
     <Project Path="src/RetireRight.Core/RetireRight.Core.csproj" />
     <Project Path="src/RetireRight.Export/RetireRight.Export.csproj" />
     <Project Path="src/RetireRight.Infrastructure/RetireRight.Infrastructure.csproj" />
