@@ -33,7 +33,9 @@ dotnet ef database update --startup-project ../RetireRight.Cli/RetireRight.Cli.c
 dotnet ef migrations add <Name> --startup-project ../RetireRight.Cli/RetireRight.Cli.csproj
 ```
 
-Migration `AddFundamentalsOwnershipScrapeRuns` exists and is applied. Tables: stocks, daily_prices, dividends, stock_fundamentals, stock_ownerships, insider_transactions, index_levels, computed_metrics, raw_responses, scrape_runs, portfolio_holdings, portfolio_transactions.
+Migrations applied: `AddFundamentalsOwnershipScrapeRuns`, `FundamentalsKeyBySource`. Tables: stocks, daily_prices, dividends, stock_fundamentals, stock_ownerships, insider_transactions, index_levels, computed_metrics, raw_responses, scrape_runs, portfolio_holdings, portfolio_transactions.
+
+`stock_fundamentals` unique key is `(StockId, Periodicity, Source)` — each scraper owns its own row per periodicity. Rows from different sources are merged at read time in `FundamentalsRepository.GetLatestAsync`.
 
 ## Architecture
 
@@ -52,7 +54,7 @@ CLI (System.CommandLine)
 | `RetireRight.Core` | Domain models, interfaces, enums, config DTOs. No dependencies. |
 | `RetireRight.Infrastructure` | DbContext, repositories, entity config. Depends on Core. |
 | `RetireRight.Scrapers` | Playwright/AngleSharp web scraping with anti-bot (throttle, retry, stealth). Depends on Core + Infrastructure. |
-| `RetireRight.MetricsEngine` | Six `IMetricCalculator` implementations: DividendSafety, DividendGrowth, Valuation, FinancialHealth, Risk, CompositeScore. Depends on Core. |
+| `RetireRight.MetricsEngine` | Seven `IMetricCalculator` implementations: DividendSafety, DividendGrowth, Valuation, FinancialHealth, Risk, Banking, CompositeScore. Plus `FundamentalsEnricher` (pre-processor) and `OpportunityScorer` (post-processor). Depends on Core. |
 | `RetireRight.Screening` | `StockScreener` + preset filters (dividend_safety, high_yield, growth, value, retirement_core). Depends on Core. |
 | `RetireRight.Export` | `JsonExporter` and `BriefingExporter` implementing `IExporter`. Depends on Core. |
 
@@ -64,9 +66,9 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 
 ## Configuration
 
-- `src/RetireRight.Cli/appsettings.json` — defaults to **localhost** PostgreSQL (`retireright_dev`), export path, watchlist symbols, data source rate limits
+- `src/RetireRight.Cli/appsettings.json` — defaults to **localhost** PostgreSQL (`retireright_dev`), export path, watchlist symbols, data source rate limits. Credentials fields are **empty strings** — never commit real credentials here.
+- `src/RetireRight.Cli/appsettings.local.json` — **gitignored**, contains real Sarmaaya credentials. Loaded as optional config layer over `appsettings.json`. Copy from `appsettings.json` and fill in `Email`/`Password` under the Sarmaaya `Credentials` block.
 - For Supabase (production): set env var `RETIRERIGHT_RetireRight__Database__ConnectionString=<supabase_connection_string>`
-- No `appsettings.local.json` or `appsettings.Production.json` — keep it simple, one file + optional env var override
 - JSONB columns (`Dictionary<string, decimal?>`) use explicit `HasConversion()` in DbContext — do NOT use `EnableDynamicJson()` (it silently drops keys on read)
 - Per-source `RateLimit` and `Retry` policies configured in `DataSources` array
 - Options pattern: `RetireRightOptions` → `DatabaseOptions`, `ExportOptions`, `WatchlistOptions`, `DataSourceOptions[]`, `PortfolioOptions`
@@ -85,9 +87,19 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 
 ```
 run --source Sarmaaya    → SarmaayaApi fetches 10 endpoints per stock → PersistAsync writes to 7 tables
-compute --all            → Loads fundamentals + prices + dividends → 6 calculators → computed_metrics table
+compute --all            → Loads fundamentals + prices + dividends
+                         → FundamentalsEnricher (derives DPS, market cap, bank revenue)
+                         → 7 calculators (incl. BankingCalculator for banking/Islamic banking sectors)
+                         → OpportunityScorer (quality + value + technical signals, o1-o7 keys)
+                         → computed_metrics table
 export --format all      → Reads computed_metrics → JSON + Markdown to exports folder
 ```
+
+**Metric counts (verified 2026-05-16):**
+- Non-bank stocks: 61/77 metrics populated
+- Banking stocks (MCB, UBL, MEBL): 67/92 metrics (15 banking H-category metrics added)
+
+**MetricContext.Sector** is typed as `Sector?` (enum, not string). Banking gate uses `HashSet<Sector> { Banking, IslamicBanking }` — consistent across BankingCalculator, CompositeScoreCalculator, OpportunityScorer, and FundamentalsEnricher.
 
 ## Sarmaaya API Critical Patterns
 
@@ -150,21 +162,27 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 - [x] Solution structure (7 projects + references + NuGet packages)
 - [x] Core: enums, models, interfaces, configuration, FundamentalKeys constants
 - [x] Scrapers: anti-bot infra + Sarmaaya API client (10 endpoints per stock)
-- [x] Infrastructure: DbContext + 10 repositories, EF migration applied
+- [x] Infrastructure: DbContext + 10 repositories, EF migrations applied
 - [x] Export: JSON + Markdown briefing exporters
-- [x] MetricsEngine: 6 calculators (Safety, Growth, Valuation, Health, Risk, Composite) — 61/77 metrics for non-banks
+- [x] MetricsEngine: 7 calculators (Safety, Growth, Valuation, Health, Risk, Banking, Composite) — 61/77 non-banks, 67/92 banks
+- [x] FundamentalsEnricher (pre-processor: DPS, market cap, bank revenue)
+- [x] OpportunityScorer (post-processor: quality + value + technical, o1-o7 keys, bitmask flags)
+- [x] BankingCalculator: H1-H15 (NIM, cost-to-income, NPL, CAR, Tier1, LCR, ADR, ROA, ROE, etc.)
 - [x] Screening: StockScreener + 5 presets
 - [x] CLI: Program.cs + DI + 4 commands (run, export, status, compute)
-- [x] Full 50-stock scrape → compute → export pipeline working
-- [x] Local PostgreSQL database with all tables populated
+- [x] Full pipeline tested: 8-stock scrape → compute → export working
+- [x] Local PostgreSQL 17 database with all tables populated
 - [x] Sarmaaya key mapper: all 54 ratio keys + income + balance sheet mapped
+- [x] Fundamentals unique key: (StockId, Periodicity, Source) — per-source row ownership
+- [x] appsettings.local.json pattern for gitignored credentials
+- [x] Repo on GitHub (private): github.com/0xahs/RetireRight
 
 **Phase 2 — Data Pipeline (NEXT)**
-- [ ] StockAnalysis scraper (unlocks cash flow data → 7 metrics)
+- [ ] StockAnalysis scraper (unlocks cash flow data → 7 metrics: a2, a3, a5, a10, b8, c8, d9)
 - [ ] Source failover chains (if Sarmaaya fails, try PsxOfficial)
-- [ ] Macro data scrapers (PKR/USD, Brent, SBP rate — KSE-100 already done)
+- [ ] Macro data scrapers (PKR/USD, Brent, SBP rate — KSE-100 already done via Sarmaaya)
 - [ ] GrowthQualityCalculator (Category E — 20 metrics, data available)
-- [ ] Sector-specific metric calculators (Banking, E&P, Power, Fertilizer)
+- [ ] E&P, Power, Fertilizer sector-specific calculators
 
 **Phase 3 — Intelligence**
 - [ ] Alert engine (yield traps, payout > 100%, upcoming ex-dates)
