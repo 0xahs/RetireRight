@@ -100,7 +100,8 @@ public class StockScreener : IScreener
         {
             "c1_pe_ratio", "c3_pb_ratio", "c9_dividend_yield", "c12_roe",
             "a1_earnings_payout_ratio", "a4_dividend_coverage",
-            "b3_dps_cagr_5y", "f2_annual_volatility"
+            "b3_dps_cagr_5y", "f2_annual_volatility",
+            "o6_opportunity_score", "o7_flags"
         };
 
         foreach (var key in coreKeys.Union(filterKeys))
