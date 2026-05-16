@@ -1,14 +1,8 @@
-import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
+import NextAuth from 'next-auth';
+import { authConfig } from '@/auth.config';
 
-export default auth((req) => {
-  if (!req.auth) {
-    const loginUrl = new URL('/login', req.url);
-    loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-});
+export default NextAuth(authConfig).auth;
 
 export const config = {
-  matcher: ['/((?!api/auth|_next/static|_next/image|favicon\\.ico|login).*)'],
+  matcher: ['/((?!api/auth|_next/static|_next/image|favicon\\.ico).*)'],
 };
