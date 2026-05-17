@@ -1,162 +1,195 @@
 'use client';
 
 import { useStocks, useMacro, useUpcomingDividends } from '@/lib/api/queries';
-import { formatRs, formatPct, formatScore, signalLabel, signalColorClass, freshnessBadge, scoreColor } from '@/lib/utils/format';
-import { Badge } from '@/components/ui/badge';
+import { formatRs, formatPct, freshnessBadge } from '@/lib/utils/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, Calendar, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, CalendarDays, AlertCircle, Clock, ArrowRight } from 'lucide-react';
+import { ScoreBar, SignalBadge } from '@/components/stock-ui';
 
 export function CommandCenterContent() {
   return (
     <div className="space-y-6">
+      {/* Page heading */}
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Command Center</h1>
-        <p className="text-muted-foreground text-sm mt-1">PSX Dividend Intelligence Dashboard</p>
+        <h1 className="text-xl font-semibold tracking-tight">Command Center</h1>
+        <p className="text-muted-foreground text-xs mt-0.5">PSX Dividend Intelligence — live market overview</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MacroStrip />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      {/* Macro strip */}
+      <MacroStrip />
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
           <WatchlistSnapshot />
         </div>
-        <div>
-          <UpcomingDividendsWidget />
-        </div>
+        <UpcomingDividendsWidget />
       </div>
     </div>
   );
 }
+
+/* ── Macro strip ──────────────────────────────────────────────────────────── */
 
 function MacroStrip() {
   const { data, isLoading } = useMacro();
 
   if (isLoading) {
     return (
-      <>
+      <div className="grid grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
-          <Card key={i}><CardContent className="p-4"><Skeleton className="h-10 w-full" /></CardContent></Card>
+          <Card key={i} className="border-border/50 card-panel">
+            <CardContent className="p-4"><Skeleton className="h-12 w-full rounded-sm" /></CardContent>
+          </Card>
         ))}
-      </>
+      </div>
     );
   }
 
   if (!data) return null;
 
+  const kseUp = (data.kse100ChangePct ?? 0) >= 0;
+
   return (
-    <>
-      <Card>
-        <CardHeader className="pb-1 pt-4 px-4">
-          <CardTitle className="text-xs text-muted-foreground font-normal">KSE-100</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="text-xl font-semibold">
-            {data.kse100Level?.toLocaleString('en-PK', { maximumFractionDigits: 0 }) ?? '-'}
+    <div className="grid grid-cols-3 gap-4">
+      {/* KSE-100 — primary, larger */}
+      <Card className={cn(
+        'border-border/50 card-panel relative overflow-hidden',
+        kseUp ? 'bg-emerald-500/5' : 'bg-red-500/5',
+      )}>
+        <div className={cn(
+          'absolute top-0 left-0 right-0 h-0.5',
+          kseUp ? 'bg-emerald-500/60' : 'bg-red-500/60',
+        )} />
+        <CardContent className="p-4">
+          <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">KSE-100</div>
+          <div className="num text-2xl font-bold tracking-tight">
+            {data.kse100Level?.toLocaleString('en-PK', { maximumFractionDigits: 0 }) ?? '—'}
           </div>
           {data.kse100ChangePct != null && (
-            <div className={cn('text-sm flex items-center gap-1', data.kse100ChangePct >= 0 ? 'text-emerald-500' : 'text-red-500')}>
-              {data.kse100ChangePct >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              {formatPct(data.kse100ChangePct)}
+            <div className={cn(
+              'num text-sm flex items-center gap-1 mt-1 font-medium',
+              kseUp ? 'text-emerald-500' : 'text-red-500',
+            )}>
+              {kseUp ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+              {kseUp ? '+' : ''}{formatPct(data.kse100ChangePct)} today
             </div>
           )}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader className="pb-1 pt-4 px-4">
-          <CardTitle className="text-xs text-muted-foreground font-normal">SBP Rate / PKR-USD</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="text-xl font-semibold">{formatPct(data.sbpRate)}</div>
-          <div className="text-sm text-muted-foreground">PKR/USD: {data.pkrUsd?.toFixed(2) ?? '-'}</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-1 pt-4 px-4">
-          <CardTitle className="text-xs text-muted-foreground font-normal">Brent Crude</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="text-xl font-semibold">${data.brentCrude?.toFixed(2) ?? '-'}</div>
-          <div className="text-xs text-muted-foreground">
-            As of {data.asOf ? new Date(data.asOf).toLocaleDateString() : '-'}
+
+      {/* SBP / PKR-USD */}
+      <Card className="border-border/50 card-panel">
+        <CardContent className="p-4">
+          <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">Policy Rate</div>
+          <div className="num text-2xl font-bold tracking-tight">{formatPct(data.sbpRate)}</div>
+          <div className="num text-sm text-muted-foreground mt-1">
+            PKR/USD: <span className="font-medium text-foreground">{data.pkrUsd?.toFixed(2) ?? '—'}</span>
           </div>
         </CardContent>
       </Card>
-    </>
+
+      {/* Brent Crude */}
+      <Card className="border-border/50 card-panel">
+        <CardContent className="p-4">
+          <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">Brent Crude</div>
+          <div className="num text-2xl font-bold tracking-tight">
+            ${data.brentCrude?.toFixed(2) ?? '—'}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1">
+            As of {data.asOf ? new Date(data.asOf).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' }) : '—'}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
+
+/* ── Watchlist snapshot ───────────────────────────────────────────────────── */
 
 function WatchlistSnapshot() {
   const { data: stocks, isLoading } = useStocks();
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="border-border/50 card-panel overflow-hidden">
+      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Watchlist</CardTitle>
-          <Link href="/watchlist" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            View all
+          <CardTitle className="text-sm font-semibold">Top Watchlist</CardTitle>
+          <Link
+            href="/watchlist"
+            className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-1"
+          >
+            View all <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
-          <div className="px-6 pb-4 space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
+          <div className="px-5 py-4 space-y-2.5">
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-sm" />)}
           </div>
         ) : !stocks?.length ? (
-          <div className="px-6 pb-4 text-sm text-muted-foreground">No stocks in watchlist</div>
+          <div className="px-5 py-8 text-sm text-muted-foreground text-center">No stocks in watchlist</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-6 py-2 text-xs text-muted-foreground font-medium">Symbol</th>
-                <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Price</th>
-                <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Yield</th>
-                <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Score</th>
-                <th className="text-right px-6 py-2 text-xs text-muted-foreground font-medium">Signal</th>
+              <tr className="border-b border-border/40" style={{ background: 'oklch(1 0 0 / 2%)' }}>
+                <th className="text-left pl-5 pr-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Symbol</th>
+                <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Price</th>
+                <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Yield</th>
+                <th className="px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest w-28">Score</th>
+                <th className="text-left pr-5 pl-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Signal</th>
               </tr>
             </thead>
             <tbody>
-              {stocks.map((s) => {
-                const freshness = freshnessBadge(s.scrapedAt);
-                return (
-                  <tr key={s.symbol} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
-                    <td className="px-6 py-2.5">
-                      <Link href={`/stock/${s.symbol}`} className="font-medium hover:text-primary transition-colors">
-                        {s.symbol}
-                      </Link>
-                      <div className="text-xs text-muted-foreground truncate max-w-[140px]">{s.name}</div>
-                    </td>
-                    <td className="text-right px-3 py-2.5">
-                      <div>{formatRs(s.price)}</div>
-                      {s.changePct != null && (
-                        <div className={cn('text-xs', s.changePct >= 0 ? 'text-emerald-500' : 'text-red-500')}>
-                          {s.changePct >= 0 ? '+' : ''}{formatPct(s.changePct)}
+              {[...stocks]
+                .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0))
+                .slice(0, 8)
+                .map((s) => {
+                  const freshness = freshnessBadge(s.scrapedAt);
+                  return (
+                    <tr key={s.symbol} className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
+                      <td className="pl-5 pr-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          {freshness === 'stale' && (
+                            <AlertCircle className="h-2.5 w-2.5 text-amber-500/70 shrink-0" />
+                          )}
+                          <div>
+                            <Link href={`/stock/${s.symbol}`} className="num font-semibold text-[13px] hover:text-primary transition-colors">
+                              {s.symbol}
+                            </Link>
+                            <div className="text-[10px] text-muted-foreground/60 truncate max-w-[100px] leading-tight">
+                              {s.name}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </td>
-                    <td className="text-right px-3 py-2.5 tabular-nums">
-                      {formatPct(s.dividendYield)}
-                    </td>
-                    <td className={cn('text-right px-3 py-2.5 tabular-nums font-medium', scoreColor(s.compositeScore))}>
-                      {formatScore(s.compositeScore)}
-                    </td>
-                    <td className="text-right px-6 py-2.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {freshness === 'stale' && (
-                          <AlertCircle className="h-3 w-3 text-yellow-500" aria-label="Data may be stale" />
+                      </td>
+                      <td className="text-right px-3 py-2.5 whitespace-nowrap">
+                        <div className="num text-[13px] font-semibold">{formatRs(s.price)}</div>
+                        {s.changePct != null && (
+                          <div className={cn(
+                            'num text-[10px] leading-tight',
+                            s.changePct >= 0 ? 'text-emerald-500' : 'text-red-500',
+                          )}>
+                            {s.changePct >= 0 ? '+' : ''}{formatPct(s.changePct)}
+                          </div>
                         )}
-                        <span className={cn('text-xs font-medium', signalColorClass(s.signal))}>
-                          {signalLabel(s.signal)}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td className="text-right px-3 py-2.5">
+                        <span className="num font-semibold text-[13px]">{formatPct(s.dividendYield)}</span>
+                      </td>
+                      <td className="px-3 py-2.5 w-28">
+                        <ScoreBar score={s.compositeScore} />
+                      </td>
+                      <td className="pr-5 pl-3 py-2.5">
+                        <SignalBadge signal={s.signal} />
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         )}
@@ -165,50 +198,72 @@ function WatchlistSnapshot() {
   );
 }
 
+/* ── Upcoming dividends ───────────────────────────────────────────────────── */
+
 function UpcomingDividendsWidget() {
   const { data: dividends, isLoading } = useUpcomingDividends(60);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="border-border/50 card-panel overflow-hidden">
+      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <CalendarDays className="h-3.5 w-3.5 text-primary" />
             Upcoming Ex-Dates
           </CardTitle>
-          <Link href="/dividends" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            View all
+          <Link
+            href="/dividends"
+            className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-1"
+          >
+            View all <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="p-3 space-y-1">
         {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+          <div className="space-y-1.5">
+            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full rounded-sm" />)}
           </div>
         ) : !dividends?.length ? (
-          <p className="text-sm text-muted-foreground">No upcoming dividends in the next 60 days</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">No upcoming dividends (60 days)</p>
         ) : (
-          dividends.slice(0, 8).map((d, i) => (
-            <div key={i} className="flex items-start justify-between p-2.5 rounded-md bg-accent/30">
-              <div>
-                <div className="font-medium text-sm">{d.symbol}</div>
-                <div className="text-xs text-muted-foreground">
-                  Ex: {new Date(d.exDate).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })}
-                  {d.daysUntilEx === 0 ? ' (today)' : ` — ${d.daysUntilEx}d`}
+          dividends.slice(0, 7).map((d, i) => {
+            const urgent = d.daysUntilEx <= 3;
+            const soon = d.daysUntilEx <= 7;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  'flex items-center justify-between px-3 py-2.5 rounded-sm border transition-colors',
+                  urgent
+                    ? 'bg-red-500/5 border-red-500/15 hover:bg-red-500/10'
+                    : soon
+                    ? 'bg-amber-500/5 border-amber-500/15 hover:bg-amber-500/10'
+                    : 'bg-muted/[0.04] border-border/30 hover:bg-muted/[0.08]',
+                )}
+              >
+                <div>
+                  <Link href={`/stock/${d.symbol}`} className="num font-semibold text-[13px] hover:text-primary transition-colors cursor-pointer">
+                    {d.symbol}
+                  </Link>
+                  <div className="flex items-center gap-1 num text-[10px] text-muted-foreground/60 mt-0.5">
+                    <Clock className="h-2.5 w-2.5" />
+                    Ex: {new Date(d.exDate).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}
+                    {' · '}{d.daysUntilEx === 0 ? 'today' : `${d.daysUntilEx}d`}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="num font-semibold text-[13px]">Rs. {d.dps}</div>
+                  <div className={cn(
+                    'num text-[10px] font-medium',
+                    urgent ? 'text-red-400' : soon ? 'text-amber-400' : 'text-muted-foreground/50',
+                  )}>
+                    {urgent ? 'Urgent' : soon ? 'Soon' : `${d.daysUntilEx}d away`}
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium">Rs. {d.dps}</div>
-                <Badge
-                  variant={d.daysUntilEx <= 3 ? 'destructive' : d.daysUntilEx <= 7 ? 'default' : 'secondary'}
-                  className="text-xs"
-                >
-                  {d.daysUntilEx <= 3 ? 'Urgent' : d.daysUntilEx <= 7 ? 'Soon' : `${d.daysUntilEx}d`}
-                </Badge>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </CardContent>
     </Card>

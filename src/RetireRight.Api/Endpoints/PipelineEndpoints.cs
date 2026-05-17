@@ -70,10 +70,10 @@ public static class PipelineEndpoints
     }
 
     private static async Task<IResult> GetRunsAsync(
-        int page,
-        int pageSize,
         RetireRightDbContext db,
-        CancellationToken ct)
+        CancellationToken ct,
+        int page = 1,
+        int pageSize = 20)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);

@@ -81,6 +81,15 @@ try
                     sp.GetRequiredService<IStockRepository>(),
                     sp.GetRequiredService<IFundamentalsRepository>()));
                 break;
+
+            case "macro":
+                builder.Services.AddTransient<IScraper>(sp => new MacroScraper(
+                    sp.GetRequiredService<ILoggerFactory>().CreateLogger<MacroScraper>(),
+                    sp.GetRequiredService<RequestThrottler>(),
+                    sp.GetRequiredService<RetryPolicy>(),
+                    sourceConfig,
+                    sp.GetRequiredService<IMacroRepository>()));
+                break;
         }
     }
 
