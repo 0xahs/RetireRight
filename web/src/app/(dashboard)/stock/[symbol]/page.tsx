@@ -10,6 +10,7 @@ import { FlagBadge } from '@/components/stock-ui';
 import { StockLogo } from '@/components/stock-logo';
 import { PriceChart } from '@/components/price-chart';
 import { VerdictStrip } from '@/components/signal/verdict-strip';
+import { AiMemoTab } from '@/components/signal/ai-memo-tab';
 import { CompareButton } from '@/components/compare/compare-sticky-bar';
 
 export default function StockPage() {
@@ -111,6 +112,7 @@ export default function StockPage() {
           <TerminalTabTrigger value="dividends" label="DIVIDENDS" />
           <TerminalTabTrigger value="fundamentals" label="FUNDAMENTALS" />
           {hasBanking && <TerminalTabTrigger value="banking" label="BANKING" />}
+          <TerminalTabTrigger value="memo" label="AI MEMO" />
         </TabsList>
 
         <TabsContent value="overview" className="mt-3">
@@ -223,6 +225,10 @@ export default function StockPage() {
             </div>
           </TabsContent>
         )}
+
+        <TabsContent value="memo" className="mt-3">
+          <AiMemoTab symbol={summary.symbol} />
+        </TabsContent>
       </Tabs>
     </div>
   );

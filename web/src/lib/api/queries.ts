@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type {
-  StockSummaryDto, StockDetailDto, StockMetricsDto,
+  StockSummaryDto, StockDetailDto, StockMetricsDto, StockMemoDto,
   DividendSummaryDto, UpcomingDividendDto, PricePointDto, SignalHistoryDto,
   ScreenerRequestDto, ScreenerResultDto,
   MacroDto,
@@ -63,6 +63,15 @@ export function useStockDividends(symbol: string) {
   return useQuery({
     queryKey: queryKeys.stockDividends(symbol),
     queryFn: () => api.get<DividendSummaryDto[]>(`/api/stocks/${symbol}/dividends`),
+    staleTime: 300_000,
+    enabled: !!symbol,
+  });
+}
+
+export function useStockMemo(symbol: string) {
+  return useQuery({
+    queryKey: ['stocks', symbol, 'memo'] as const,
+    queryFn: () => api.get<StockMemoDto>(`/api/stocks/${symbol}/memo`),
     staleTime: 300_000,
     enabled: !!symbol,
   });

@@ -36,6 +36,10 @@ public static class StocksEndpoints
         group.MapGet("/{symbol}/signal-history", GetSignalHistoryAsync)
             .WithName("GetSignalHistory")
             .WithSummary("Get derived verdict history for the last N days");
+
+        group.MapGet("/{symbol}/memo", GetStockMemoAsync)
+            .WithName("GetStockMemo")
+            .WithSummary("Generate a per-stock investment memo with metric citations");
     }
 
     private static async Task<IResult> GetWatchlistAsync(
@@ -173,6 +177,29 @@ public static class StocksEndpoints
             .ToArray();
 
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetStockMemoAsync(
+        string symbol,
+        RetireRightDbContext db,
+        IStockRepository stockRepo,
+        CancellationToken ct)
+    {
+        var stock = await stockRepo.GetBySymbolAsync(symbol.ToUpper(), ct);
+        if (stock is null) return Results.NotFound();
+
+        var price = await db.DailyPrices
+            .Where(p => p.StockId == stock.Id)
+            .OrderByDescending(p => p.Date)
+            .FirstOrDefaultAsync(ct);
+
+        var computed = await db.ComputedMetrics
+            .Where(c => c.StockId == stock.Id)
+            .OrderByDescending(c => c.ComputedDate)
+            .FirstOrDefaultAsync(ct);
+
+        var memo = RetireRight.Api.Mapping.MemoGenerator.Generate(stock, price, computed);
+        return Results.Ok(memo);
     }
 
     private static async Task<IResult> GetSignalHistoryAsync(

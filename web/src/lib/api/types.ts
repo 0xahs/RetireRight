@@ -65,6 +65,39 @@ export interface SignalHistoryPointDto {
   convictionLevel: ConvictionLevel;
 }
 
+export interface StockMemoDto {
+  symbol: string;
+  verdict: Verdict;
+  generatedAt: string;
+  dataAsOf: string | null;
+  sourceConfidence: string;
+  metricsPopulated: number;
+  metricsTotal: number;
+  snapshot: MemoSection;
+  thesis: MemoSection;
+  risks: MemoSection;
+  valuation: MemoSection;
+  verdictSection: MemoSection;
+  claudeEnvelope: ClaudeEnvelopeDto;
+}
+
+export interface MemoSection {
+  title: string;
+  lines: MemoLine[];
+}
+
+export interface MemoLine {
+  text: string;
+  citations: string[];
+  isOpinion: boolean;
+}
+
+export interface ClaudeEnvelopeDto {
+  json: string;
+  estimatedTokens: number;
+  sizeBytes: number;
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 export interface StockMetricsDto {
