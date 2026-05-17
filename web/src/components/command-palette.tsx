@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Command } from 'cmdk';
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
 import { useStocks } from '@/lib/api/queries';
 import { formatPct, formatScore } from '@/lib/utils/format';
@@ -54,6 +56,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       label="Command Palette"
       className="fixed inset-0 z-50"
     >
+      <VisuallyHidden.Root>
+        <DialogPrimitive.Title>Command Palette</DialogPrimitive.Title>
+      </VisuallyHidden.Root>
+
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
