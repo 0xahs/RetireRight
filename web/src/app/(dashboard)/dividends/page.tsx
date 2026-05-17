@@ -61,7 +61,7 @@ export default function DividendsPage() {
                   {dividends.map((d, i) => (
                     <tr
                       key={i}
-                      className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors"
+                      className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors"
                     >
                       <td className="pl-5 pr-3 py-3">
                         <Link

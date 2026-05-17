@@ -105,18 +105,18 @@ export default function WatchlistPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[900px]">
                 <thead>
                   <tr className="border-b border-border/40" style={{ background: 'oklch(1 0 0 / 2%)' }}>
-                    <SortableCol label="Symbol"      sortKey="symbol"          current={sort} onSort={toggleSort} className="text-left pl-5 pr-3" />
-                    <th className="px-3 py-2.5 text-left text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Sector</th>
-                    <SortableCol label="Price"        sortKey="price"           current={sort} onSort={toggleSort} className="text-right px-3" />
-                    <SortableCol label="Yield"        sortKey="dividendYield"   current={sort} onSort={toggleSort} className="text-right px-3" />
-                    <SortableCol label="Coverage"     sortKey="dividendCoverage" current={sort} onSort={toggleSort} className="text-right px-3" />
-                    <SortableCol label="Score"        sortKey="compositeScore"  current={sort} onSort={toggleSort} className="px-3 w-36" />
-                    <SortableCol label="Opportunity"  sortKey="opportunityScore" current={sort} onSort={toggleSort} className="px-3 w-36" />
-                    <th className="px-3 py-2.5 text-left text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Signal</th>
-                    <th className="pl-3 pr-6 py-2.5 text-left text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Flags</th>
+                    <SortableCol label="Symbol"      sortKey="symbol"           current={sort} onSort={toggleSort} className="text-left pl-5 pr-3" style={{ minWidth: 160 }} />
+                    <th style={{ minWidth: 110 }} className="px-3 py-2.5 text-left text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Sector</th>
+                    <SortableCol label="Price"        sortKey="price"            current={sort} onSort={toggleSort} className="text-right px-3" style={{ minWidth: 100 }} />
+                    <SortableCol label="Yield"        sortKey="dividendYield"    current={sort} onSort={toggleSort} className="text-right px-3" style={{ minWidth: 70 }} />
+                    <SortableCol label="Coverage"     sortKey="dividendCoverage" current={sort} onSort={toggleSort} className="text-right px-3" style={{ minWidth: 80 }} />
+                    <SortableCol label="Score"        sortKey="compositeScore"   current={sort} onSort={toggleSort} className="px-3" style={{ minWidth: 130 }} />
+                    <SortableCol label="Opportunity"  sortKey="opportunityScore" current={sort} onSort={toggleSort} className="px-3" style={{ minWidth: 130 }} />
+                    <th style={{ minWidth: 100 }} className="px-3 py-2.5 text-left text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Signal</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Flags</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -125,7 +125,7 @@ export default function WatchlistPage() {
                     return (
                       <tr
                         key={s.symbol}
-                        className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors cursor-pointer"
+                        className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors cursor-pointer"
                       >
                         {/* Symbol */}
                         <td className="pl-5 pr-3 py-3">
@@ -184,12 +184,12 @@ export default function WatchlistPage() {
                         </td>
 
                         {/* Score */}
-                        <td className="px-3 py-3 w-36">
+                        <td className="px-3 py-3">
                           <ScoreBar score={s.compositeScore} />
                         </td>
 
                         {/* Opportunity */}
-                        <td className="px-3 py-3 w-36">
+                        <td className="px-3 py-3">
                           <ScoreBar score={s.opportunityScore} />
                         </td>
 
@@ -220,13 +220,14 @@ export default function WatchlistPage() {
 }
 
 function SortableCol({
-  label, sortKey, current, onSort, className,
+  label, sortKey, current, onSort, className, style,
 }: {
   label: string;
   sortKey: SortKey;
   current: { key: SortKey; dir: 'asc' | 'desc' };
   onSort: (key: SortKey) => void;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const active = current.key === sortKey;
   return (
@@ -236,6 +237,7 @@ function SortableCol({
         active ? 'text-primary' : 'text-muted-foreground/60 hover:text-muted-foreground',
         className,
       )}
+      style={style}
       onClick={() => onSort(sortKey)}
     >
       <span className="flex items-center gap-1 whitespace-nowrap">

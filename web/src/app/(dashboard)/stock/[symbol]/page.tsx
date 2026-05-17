@@ -142,7 +142,7 @@ export default function StockPage() {
                   </thead>
                   <tbody>
                     {recentDividends.map((d, i) => (
-                      <tr key={i} className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
+                      <tr key={i} className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
                         <td className="px-6 py-3 num text-[13px]">
                           {new Date(d.exDate).toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </td>

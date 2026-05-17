@@ -139,10 +139,10 @@ function WatchlistSnapshot() {
             <thead>
               <tr className="border-b border-border/40" style={{ background: 'oklch(1 0 0 / 2%)' }}>
                 <th className="text-left pl-5 pr-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Symbol</th>
-                <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Price</th>
-                <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Yield</th>
-                <th className="px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest w-28">Score</th>
-                <th className="text-left pr-5 pl-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Signal</th>
+                <th style={{ width: 110, minWidth: 110 }} className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Price</th>
+                <th style={{ width: 75, minWidth: 75 }} className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Yield</th>
+                <th style={{ width: 130, minWidth: 130 }} className="px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Score</th>
+                <th style={{ width: 110, minWidth: 110 }} className="text-left pr-5 pl-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Signal</th>
               </tr>
             </thead>
             <tbody>
@@ -152,7 +152,7 @@ function WatchlistSnapshot() {
                 .map((s) => {
                   const freshness = freshnessBadge(s.scrapedAt);
                   return (
-                    <tr key={s.symbol} className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
+                    <tr key={s.symbol} className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
                       <td className="pl-5 pr-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <StockLogo symbol={s.symbol} size={24} />

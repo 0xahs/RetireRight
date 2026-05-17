@@ -144,22 +144,13 @@
 }
 
 @layer utilities {
-  /* Left-border hover treatment for table rows */
+  /* Left-border hover treatment for table rows — box-shadow avoids position:relative on <tr> */
   .row-hover {
-    position: relative;
+    box-shadow: inset 2px 0 0 transparent;
+    transition: box-shadow 150ms ease;
   }
-  .row-hover::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: transparent;
-    transition: background 150ms ease;
-  }
-  .row-hover:hover::before {
-    background: oklch(0.62 0.17 254 / 70%);
+  .row-hover:hover {
+    box-shadow: inset 2px 0 0 oklch(0.62 0.17 254 / 70%);
   }
 
   /* Glow effect for score fills */

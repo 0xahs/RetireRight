@@ -195,7 +195,7 @@ export default function ScreenerPage() {
                     {result.stocks.map((s) => (
                       <tr
                         key={s.symbol}
-                        className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors cursor-pointer"
+                        className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors cursor-pointer"
                       >
                         {/* Rank */}
                         <td className="text-right pl-5 pr-2 py-3">
