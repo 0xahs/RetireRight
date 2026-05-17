@@ -44,3 +44,6 @@ Thumbs.db
 
 ## Exports (generated data)
 exports/
+
+## Private prompts / design docs
+prompts/
