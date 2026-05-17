@@ -165,9 +165,14 @@ public static class PipelineEndpoints
         }
     }
 
+    private static readonly System.Text.Json.JsonSerializerOptions _camelCase = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+    };
+
     private static Task WriteEventAsync(HttpResponse response, PipelineEventDto evt, CancellationToken ct)
     {
-        var data = System.Text.Json.JsonSerializer.Serialize(evt);
+        var data = System.Text.Json.JsonSerializer.Serialize(evt, _camelCase);
         var text = $"event: {evt.EventType}\ndata: {data}\n\n";
         return response.WriteAsync(text, ct);
     }
