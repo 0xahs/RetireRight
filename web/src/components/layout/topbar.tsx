@@ -2,9 +2,18 @@
 
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { LogOut, ChevronRight, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { LogOut, ChevronRight, Search, ChevronDown } from 'lucide-react';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const ROUTE_LABELS: Record<string, string> = {
   '/dashboard': 'Command Center',
@@ -62,15 +71,36 @@ export function Topbar() {
             </kbd>
           </button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer"
-            onClick={() => signOut({ redirectTo: '/login' })}
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 h-7 px-2 rounded-sm hover:bg-muted/[0.12] transition-colors cursor-pointer group bg-transparent border-0 outline-none">
+              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-primary">A</span>
+              </div>
+              <span className="text-[12px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                Ahmad Sahi
+              </span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground/50" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  <div className="flex flex-col gap-0.5 py-0.5">
+                    <span className="text-[13px] font-semibold text-foreground">Ahmad Sahi</span>
+                    <span className="text-[11px] text-muted-foreground">PSX Investor</span>
+                  </div>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                className="gap-2 cursor-pointer"
+                onClick={() => signOut({ redirectTo: '/login' })}
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

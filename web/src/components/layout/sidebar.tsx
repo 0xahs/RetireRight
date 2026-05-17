@@ -65,16 +65,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-border/60 px-4 py-3 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-bold text-primary">A</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-medium text-sidebar-foreground truncate">Ahmad Sahi</div>
-            <div className="text-[10px] text-muted-foreground truncate">PSX Investor</div>
-          </div>
-        </div>
-        <div className="mt-2.5 text-[9px] text-muted-foreground/40 text-center font-medium tracking-widest uppercase">
+        <div className="text-[9px] text-muted-foreground/40 text-center font-medium tracking-widest uppercase">
           KSE-100 · PSX
         </div>
       </div>
