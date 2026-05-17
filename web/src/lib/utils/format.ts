@@ -1,6 +1,37 @@
-export function formatRs(value: number | null | undefined): string {
+/**
+ * Format a Pakistani-rupee value.
+ *
+ * Rules tuned for dividend-investor UX:
+ *   - Prices (small values < Rs. 10,000): 2 decimals always (e.g. Rs. 379.50)
+ *   - Mid range (10K–100K): 0 decimals + thousand separators (e.g. Rs. 12,500)
+ *   - Lakhs (≥ 1L): compact e.g. Rs. 12.3L
+ *
+ * Pass { compact: false } to disable the lakh shortening for projection charts.
+ */
+export function formatRs(
+  value: number | null | undefined,
+  opts?: { compact?: boolean; decimals?: number },
+): string {
   if (value == null) return '-';
-  if (Math.abs(value) >= 100_000) return `Rs. ${(value / 100_000).toFixed(1)}L`;
+  const abs = Math.abs(value);
+  const compact = opts?.compact ?? true;
+
+  // Lakhs shortening for big numbers (portfolio totals, annual income at scale)
+  if (compact && abs >= 100_000) {
+    return `Rs. ${(value / 100_000).toFixed(1)}L`;
+  }
+
+  // Explicit decimals override
+  if (opts?.decimals != null) {
+    return `Rs. ${value.toLocaleString('en-PK', { minimumFractionDigits: opts.decimals, maximumFractionDigits: opts.decimals })}`;
+  }
+
+  // Stock prices and other small values keep 2 decimals
+  if (abs < 10_000) {
+    return `Rs. ${value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // Mid-range whole numbers (transaction totals, monthly budget)
   return `Rs. ${value.toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
 }
 
