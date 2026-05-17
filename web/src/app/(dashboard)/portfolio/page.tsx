@@ -29,12 +29,20 @@ export default function PortfolioPage() {
             HOLDINGS · DIVIDEND POSITIONS
           </h1>
         </div>
-        <button
-          onClick={() => setShowTxDialog(true)}
-          className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-bold px-3 py-1.5 border border-primary/60 bg-primary/10 text-amber hover:bg-primary/20 transition-colors cursor-pointer"
-        >
-          [ + ADD TRANSACTION ]
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/portfolio/plan"
+            className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-bold px-3 py-1.5 border border-border bg-card text-warm-muted hover:text-amber hover:border-primary/50 transition-colors"
+          >
+            ⌖ MONTHLY PLAN
+          </Link>
+          <button
+            onClick={() => setShowTxDialog(true)}
+            className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-bold px-3 py-1.5 border border-primary/60 bg-primary/10 text-amber hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            [ + ADD TRANSACTION ]
+          </button>
+        </div>
       </div>
 
       {/* Summary panels */}

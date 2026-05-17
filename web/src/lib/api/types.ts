@@ -98,6 +98,41 @@ export interface ClaudeEnvelopeDto {
   sizeBytes: number;
 }
 
+export interface MonthlyPlanDto {
+  budget: number;
+  generatedAt: string;
+  picks: PlanPickDto[];
+  summary: PlanSummaryDto;
+  notes: string[];
+}
+
+export interface PlanPickDto {
+  symbol: string;
+  name: string;
+  sector: string;
+  verdict: Verdict;
+  convictionLevel: ConvictionLevel;
+  compositeScore: number | null;
+  opportunityScore: number | null;
+  currentPrice: number | null;
+  shares: number;
+  allocatedAmount: number;
+  targetAmount: number;
+  weight: number;
+  expectedAnnualIncome: number | null;
+  netYield: number | null;
+  exDateInDays: number | null;
+  reasons: string[];
+}
+
+export interface PlanSummaryDto {
+  totalAllocated: number;
+  leftover: number;
+  pickCount: number;
+  expectedAnnualIncome: number;
+  averageNetYield: number | null;
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 export interface StockMetricsDto {

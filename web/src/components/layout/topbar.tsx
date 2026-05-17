@@ -34,6 +34,9 @@ function usePageTitle(pathname: string): { section: string; page: string } {
     const symbol = pathname.split('/')[2]?.toUpperCase() ?? '';
     return { section: 'WATCHLIST', page: symbol };
   }
+  if (pathname === '/portfolio/plan') {
+    return { section: 'PORTFOLIO', page: 'MONTHLY PLAN' };
+  }
   const label = ROUTE_LABELS[pathname] ?? 'RETIRERIGHT';
   return { section: '', page: label };
 }

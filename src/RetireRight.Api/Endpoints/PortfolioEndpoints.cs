@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using RetireRight.Api.Mapping;
+using RetireRight.Api.Services;
 using RetireRight.Core.DTOs;
 using RetireRight.Core.Interfaces;
 using RetireRight.Core.Models;
@@ -15,6 +17,7 @@ public static class PortfolioEndpoints
         group.MapGet("/holdings", GetHoldingsAsync).WithName("GetPortfolioHoldings");
         group.MapGet("/transactions", GetTransactionsAsync).WithName("GetPortfolioTransactions");
         group.MapGet("/summary", GetSummaryAsync).WithName("GetPortfolioSummary");
+        group.MapGet("/monthly-plan", GetMonthlyPlanAsync).WithName("GetMonthlyPlan");
 
         group.MapPost("/transactions", AddTransactionAsync).WithName("AddTransaction");
         group.MapPut("/holdings/{id}", UpdateHoldingAsync).WithName("UpdateHolding");
@@ -154,6 +157,78 @@ public static class PortfolioEndpoints
         return Results.Ok(new PortfolioSummaryDto(
             totalCost, totalMarketValue, gainLoss, gainLossPct,
             annualIncome, portfolioYield, holdings.Count));
+    }
+
+    private static async Task<IResult> GetMonthlyPlanAsync(
+        decimal? budget,
+        IStockRepository stockRepo,
+        IPortfolioRepository portfolioRepo,
+        RetireRightDbContext db,
+        CancellationToken ct)
+    {
+        var b = budget is null or <= 0 ? 12_000m : budget.Value;
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        // Portfolio sector weights — for concentration penalty
+        var holdings = await portfolioRepo.GetHoldingsAsync(ct);
+        var sectorMarketValues = new Dictionary<string, decimal>();
+        decimal portfolioMV = 0m;
+        foreach (var h in holdings)
+        {
+            var px = await db.DailyPrices
+                .Where(p => p.StockId == h.StockId)
+                .OrderByDescending(p => p.Date)
+                .Select(p => p.Close)
+                .FirstOrDefaultAsync(ct);
+            if (px <= 0) continue;
+            var mv = h.Shares * px;
+            portfolioMV += mv;
+            var sector = h.Stock!.Sector.ToString();
+            sectorMarketValues[sector] = sectorMarketValues.GetValueOrDefault(sector) + mv;
+        }
+        decimal SectorWeight(string sector) =>
+            portfolioMV > 0 ? sectorMarketValues.GetValueOrDefault(sector) / portfolioMV : 0m;
+
+        // Candidates = full watchlist
+        var stocks = await stockRepo.GetWatchlistAsync(ct);
+        var candidates = new List<PlanGenerator.Candidate>();
+
+        foreach (var s in stocks)
+        {
+            var price = await db.DailyPrices
+                .Where(p => p.StockId == s.Id)
+                .OrderByDescending(p => p.Date)
+                .FirstOrDefaultAsync(ct);
+
+            var computed = await db.ComputedMetrics
+                .Where(c => c.StockId == s.Id)
+                .OrderByDescending(c => c.ComputedDate)
+                .FirstOrDefaultAsync(ct);
+
+            var sectorStr = s.Sector.ToString();
+            var grammar = SignalGrammar.Derive(
+                computed?.Metrics ?? new Dictionary<string, decimal?>(),
+                computed, price?.UpdatedAt, sectorStr);
+
+            var nextEx = await db.Dividends
+                .Where(d => d.StockId == s.Id && d.ExDate >= today && d.ExDate <= today.AddDays(60))
+                .OrderBy(d => d.ExDate)
+                .Select(d => (DateOnly?)d.ExDate)
+                .FirstOrDefaultAsync(ct);
+
+            int? daysToEx = nextEx.HasValue ? nextEx.Value.DayNumber - today.DayNumber : null;
+
+            candidates.Add(new PlanGenerator.Candidate(
+                Stock: s,
+                Price: price,
+                Computed: computed,
+                Grammar: grammar,
+                ExDateInDays: daysToEx,
+                SectorWeightInPortfolio: SectorWeight(sectorStr)));
+        }
+
+        var plan = PlanGenerator.Generate(b, candidates);
+        return Results.Ok(plan);
     }
 
     private static async Task<IResult> AddTransactionAsync(

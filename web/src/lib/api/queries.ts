@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type {
-  StockSummaryDto, StockDetailDto, StockMetricsDto, StockMemoDto,
+  StockSummaryDto, StockDetailDto, StockMetricsDto, StockMemoDto, MonthlyPlanDto,
   DividendSummaryDto, UpcomingDividendDto, PricePointDto, SignalHistoryDto,
   ScreenerRequestDto, ScreenerResultDto,
   MacroDto,
@@ -151,6 +151,15 @@ export function useTransactions() {
     queryKey: queryKeys.transactions,
     queryFn: () => api.get<TransactionDto[]>('/api/portfolio/transactions'),
     staleTime: 300_000,
+  });
+}
+
+export function useMonthlyPlan(budget: number) {
+  return useQuery({
+    queryKey: ['portfolio', 'monthly-plan', budget] as const,
+    queryFn: () => api.get<MonthlyPlanDto>(`/api/portfolio/monthly-plan?budget=${budget}`),
+    staleTime: 120_000,
+    enabled: budget > 0,
   });
 }
 
