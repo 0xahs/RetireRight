@@ -180,11 +180,14 @@ public static class StocksEndpoints
         var flags = RetireRight.MetricsEngine.OpportunityScorer
             .DecodeFlags(m.GetValueOrDefault("o7_flags")).ToArray();
 
+        var sectorStr = stock.Sector.ToString();
+        var grammar = SignalGrammar.Derive(m, computed, price?.UpdatedAt, sectorStr);
+
         return new StockSummaryDto(
             Id: stock.Id,
             Symbol: stock.Symbol,
             Name: stock.Name,
-            Sector: stock.Sector.ToString(),
+            Sector: sectorStr,
             Price: price?.Close,
             ChangePct: price?.ChangePct,
             CompositeScore: computed?.CompositeScore,
@@ -197,6 +200,15 @@ public static class StocksEndpoints
             DividendCoverage: m.GetValueOrDefault("a4_dividend_coverage"),
             OpportunityFlags: flags,
             ScrapedAt: price?.UpdatedAt,
-            ComputedAt: computed is not null ? computed.UpdatedAt : null);
+            ComputedAt: computed is not null ? computed.UpdatedAt : null,
+            Verdict: grammar.Verdict,
+            Confidence: grammar.Confidence,
+            ConvictionLevel: grammar.ConvictionLevel,
+            SafetyTier: grammar.SafetyTier,
+            NetYield: grammar.NetYield,
+            WhyLine: grammar.WhyLine,
+            Risks: grammar.Risks,
+            MetricCompleteness: grammar.Completeness,
+            MetricsTotal: grammar.Total);
     }
 }

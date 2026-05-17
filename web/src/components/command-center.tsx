@@ -1,31 +1,84 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useStocks, useMacro, useUpcomingDividends } from '@/lib/api/queries';
-import { formatRs, formatPct, freshnessBadge } from '@/lib/utils/format';
+import { formatPct } from '@/lib/utils/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, CalendarDays, AlertCircle, Clock, ArrowRight } from 'lucide-react';
-import { ScoreBar, SignalBadge } from '@/components/stock-ui';
-import { StockLogo } from '@/components/stock-logo';
+import { TrendingUp, TrendingDown, CalendarDays, Clock, ArrowRight } from 'lucide-react';
+import type { StockSummaryDto, Verdict } from '@/lib/api/types';
+import { ASUCard } from '@/components/signal/asu-card';
+import { NothingActionable } from '@/components/signal/nothing-actionable';
+
+/* ── Cockpit picker ──────────────────────────────────────────────────────────
+   Picks at most 3 stocks for the ASU strip:
+     1 ACCUMULATE (highest composite)  · or fallback to WATCH or top HOLD
+     1 REVIEW or AVOID (most urgent)   · or skip if none
+     1 OPPORTUNITY (high opportunity score, climbing)
+   Cap = 3; deduplicate by symbol. */
+
+function pickCockpitStocks(stocks: StockSummaryDto[]): {
+  cockpit: StockSummaryDto[];
+  hasUrgent: boolean;
+} {
+  if (!stocks?.length) return { cockpit: [], hasUrgent: false };
+
+  const byVerdict = (v: Verdict) => stocks.filter(s => s.verdict === v);
+
+  // Slot 1: Best ACCUMULATE; fallback to WATCH (climbing); else best HOLD with conviction
+  const accumulates = byVerdict('ACCUMULATE').sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0));
+  const watches = byVerdict('WATCH').sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
+  const holds = byVerdict('HOLD')
+    .filter(s => s.convictionLevel !== 'LOW')
+    .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0));
+
+  const slot1 = accumulates[0] ?? watches[0] ?? holds[0];
+
+  // Slot 2: AVOID first (most urgent), else REVIEW
+  const avoids = byVerdict('AVOID').sort((a, b) => (a.compositeScore ?? 0) - (b.compositeScore ?? 0));
+  const reviews = byVerdict('REVIEW');
+  const slot2 = avoids[0] ?? reviews[0];
+
+  // Slot 3: Highest opportunity score that isn't in slots 1/2
+  const picked = new Set([slot1?.symbol, slot2?.symbol].filter(Boolean));
+  const slot3 = [...stocks]
+    .filter(s => !picked.has(s.symbol))
+    .sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0))[0];
+
+  const cockpit = [slot1, slot2, slot3]
+    .filter((s): s is StockSummaryDto => Boolean(s))
+    .filter((s, i, arr) => arr.findIndex(x => x.symbol === s.symbol) === i)
+    .slice(0, 3);
+
+  const hasUrgent = avoids.length > 0 || reviews.length > 0 || accumulates.length > 0;
+
+  return { cockpit, hasUrgent };
+}
+
+function summaryLine(stocks: StockSummaryDto[]): string {
+  const counts = { ACCUMULATE: 0, HOLD: 0, REVIEW: 0, AVOID: 0, WATCH: 0 };
+  for (const s of stocks) counts[s.verdict] = (counts[s.verdict] ?? 0) + 1;
+  const parts: string[] = [];
+  if (counts.ACCUMULATE) parts.push(`${counts.ACCUMULATE} accumulate`);
+  if (counts.REVIEW) parts.push(`${counts.REVIEW} review`);
+  if (counts.AVOID) parts.push(`${counts.AVOID} risk`);
+  if (counts.WATCH) parts.push(`${counts.WATCH} watching`);
+  return parts.length ? `Today: ${parts.join(' · ')}` : `${stocks.length} stocks · all signals stable`;
+}
+
+/* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export function CommandCenterContent() {
   return (
     <div className="space-y-6">
-      {/* Page heading */}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Command Center</h1>
-        <p className="text-muted-foreground text-xs mt-0.5">PSX Dividend Intelligence — live market overview</p>
-      </div>
-
-      {/* Macro strip */}
+      <PageHeading />
       <MacroStrip />
-
-      {/* Main grid */}
+      <CockpitStrip />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
-          <WatchlistSnapshot />
+          <PortfolioPulse />
         </div>
         <UpcomingDividendsWidget />
       </div>
@@ -33,7 +86,21 @@ export function CommandCenterContent() {
   );
 }
 
-/* ── Macro strip ──────────────────────────────────────────────────────────── */
+function PageHeading() {
+  const { data: stocks } = useStocks();
+  const line = stocks ? summaryLine(stocks) : 'Loading signals…';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  return (
+    <div>
+      <h1 className="text-xl font-semibold tracking-tight">{greeting}, Ahmad.</h1>
+      <p className="text-muted-foreground text-xs mt-0.5">{line}</p>
+    </div>
+  );
+}
+
+/* ── Macro strip (unchanged from existing implementation) ─────────────────── */
 
 function MacroStrip() {
   const { data, isLoading } = useMacro();
@@ -56,7 +123,6 @@ function MacroStrip() {
 
   return (
     <div className="grid grid-cols-3 gap-4">
-      {/* KSE-100 — primary, larger */}
       <Card className={cn(
         'border-border/50 card-panel relative overflow-hidden',
         kseUp ? 'bg-emerald-500/5' : 'bg-red-500/5',
@@ -82,7 +148,6 @@ function MacroStrip() {
         </CardContent>
       </Card>
 
-      {/* SBP / PKR-USD */}
       <Card className="border-border/50 card-panel">
         <CardContent className="p-4">
           <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">Policy Rate</div>
@@ -93,7 +158,6 @@ function MacroStrip() {
         </CardContent>
       </Card>
 
-      {/* Brent Crude */}
       <Card className="border-border/50 card-panel">
         <CardContent className="p-4">
           <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">Brent Crude</div>
@@ -109,16 +173,52 @@ function MacroStrip() {
   );
 }
 
-/* ── Watchlist snapshot ───────────────────────────────────────────────────── */
+/* ── The Cockpit: 3 ASU cards or NothingActionable ────────────────────────── */
 
-function WatchlistSnapshot() {
+function CockpitStrip() {
+  const { data: stocks, isLoading } = useStocks();
+  const { data: upcoming } = useUpcomingDividends(30);
+
+  const { cockpit, hasUrgent } = useMemo(() => pickCockpitStocks(stocks ?? []), [stocks]);
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[0, 1, 2].map(i => <Skeleton key={i} className="h-56 w-full rounded-sm" />)}
+      </div>
+    );
+  }
+
+  if (!stocks?.length) return null;
+
+  // "Nothing actionable" criteria: no ACCUMULATE, no REVIEW, no AVOID
+  // (HOLD-only days = doing nothing is correct)
+  if (!hasUrgent) {
+    const nextEvent = upcoming?.[0]
+      ? `${upcoming[0].symbol} ex-date in ${upcoming[0].daysUntilEx}d`
+      : undefined;
+    return <NothingActionable trackedCount={stocks.length} nextEventLabel={nextEvent} />;
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {cockpit.map(stock => (
+        <ASUCard key={stock.symbol} stock={stock} />
+      ))}
+    </div>
+  );
+}
+
+/* ── Portfolio pulse — secondary widget (renamed from Watchlist Snapshot) ── */
+
+function PortfolioPulse() {
   const { data: stocks, isLoading } = useStocks();
 
   return (
     <Card className="border-border/50 card-panel overflow-hidden">
       <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Top Watchlist</CardTitle>
+          <CardTitle className="text-sm font-semibold">Watchlist Pulse</CardTitle>
           <Link
             href="/watchlist"
             className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-1"
@@ -135,74 +235,88 @@ function WatchlistSnapshot() {
         ) : !stocks?.length ? (
           <div className="px-5 py-8 text-sm text-muted-foreground text-center">No stocks in watchlist</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/40" style={{ background: 'oklch(1 0 0 / 2%)' }}>
-                <th className="text-left pl-5 pr-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Symbol</th>
-                <th style={{ width: 110, minWidth: 110 }} className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Price</th>
-                <th style={{ width: 75, minWidth: 75 }} className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Yield</th>
-                <th style={{ width: 130, minWidth: 130 }} className="px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Score</th>
-                <th style={{ width: 110, minWidth: 110 }} className="text-left pr-5 pl-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Signal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...stocks]
-                .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0))
-                .slice(0, 8)
-                .map((s) => {
-                  const freshness = freshnessBadge(s.scrapedAt);
-                  return (
-                    <tr key={s.symbol} className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
-                      <td className="pl-5 pr-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <StockLogo symbol={s.symbol} size={24} />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <Link href={`/stock/${s.symbol}`} className="num font-semibold text-[13px] hover:text-primary transition-colors">
-                                {s.symbol}
-                              </Link>
-                              {freshness === 'stale' && (
-                                <AlertCircle className="h-2.5 w-2.5 text-amber-500/70 shrink-0" />
-                              )}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground/60 truncate max-w-[100px] leading-tight">
-                              {s.name}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="text-right px-3 py-2.5 whitespace-nowrap">
-                        <div className="num text-[13px] font-semibold">{formatRs(s.price)}</div>
-                        {s.changePct != null && (
-                          <div className={cn(
-                            'num text-[10px] leading-tight',
-                            s.changePct >= 0 ? 'text-emerald-500' : 'text-red-500',
-                          )}>
-                            {s.changePct >= 0 ? '+' : ''}{formatPct(s.changePct)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-right px-3 py-2.5">
-                        <span className="num font-semibold text-[13px]">{formatPct(s.dividendYield)}</span>
-                      </td>
-                      <td className="px-3 py-2.5 w-28">
-                        <ScoreBar score={s.compositeScore} />
-                      </td>
-                      <td className="pr-5 pl-3 py-2.5">
-                        <SignalBadge signal={s.signal} />
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
+          <PulseList stocks={stocks} />
         )}
       </CardContent>
     </Card>
   );
 }
 
-/* ── Upcoming dividends ───────────────────────────────────────────────────── */
+function PulseList({ stocks }: { stocks: StockSummaryDto[] }) {
+  // Show ALL stocks (not just sorted by composite). Group implicit by verdict urgency.
+  const ranked = [...stocks].sort((a, b) => {
+    const order: Record<Verdict, number> = {
+      ACCUMULATE: 0, REVIEW: 1, AVOID: 2, WATCH: 3, HOLD: 4,
+    };
+    const diff = order[a.verdict] - order[b.verdict];
+    if (diff !== 0) return diff;
+    return (b.compositeScore ?? 0) - (a.compositeScore ?? 0);
+  });
+
+  return (
+    <div className="divide-y divide-border/30">
+      {ranked.map(s => (
+        <PulseRow key={s.symbol} stock={s} />
+      ))}
+    </div>
+  );
+}
+
+function PulseRow({ stock }: { stock: StockSummaryDto }) {
+  const ageHours = stock.scrapedAt
+    ? (Date.now() - new Date(stock.scrapedAt).getTime()) / 3_600_000
+    : null;
+  const ageText = ageHours == null ? '—' :
+    ageHours < 1 ? '<1h' :
+    ageHours < 48 ? `${Math.round(ageHours)}h` :
+    `${Math.round(ageHours / 24)}d`;
+
+  const up = (stock.changePct ?? 0) >= 0;
+  const accentColor =
+    stock.verdict === 'ACCUMULATE' ? 'oklch(0.72 0.16 158)' :
+    stock.verdict === 'REVIEW' ? 'oklch(0.78 0.16 80)' :
+    stock.verdict === 'AVOID' ? 'oklch(0.62 0.22 22)' :
+    stock.verdict === 'WATCH' ? 'oklch(0.72 0.14 230)' :
+    'oklch(0.55 0.05 250 / 50%)';
+
+  return (
+    <Link
+      href={`/stock/${stock.symbol}`}
+      className="flex items-center gap-3 px-5 py-2.5 hover:bg-primary/[0.04] transition-colors group"
+    >
+      <span
+        aria-hidden
+        className="w-[2px] h-7 rounded-full shrink-0"
+        style={{ backgroundColor: accentColor }}
+      />
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <span className="num font-semibold text-[13px] w-14 shrink-0 group-hover:text-primary transition-colors">{stock.symbol}</span>
+        <span className="text-[11px] text-muted-foreground/55 uppercase tracking-wider font-semibold w-[88px] shrink-0">
+          {stock.verdict.toLowerCase()}
+        </span>
+        <span className="text-[10px] text-muted-foreground/45 num truncate hidden sm:inline">
+          {stock.whyLine || stock.risks || '—'}
+        </span>
+      </div>
+      <div className="flex items-center gap-3 shrink-0 num">
+        {stock.netYield != null && (
+          <span className="text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground">{stock.netYield.toFixed(1)}%</span>
+            <span className="text-muted-foreground/45 ml-0.5">net</span>
+          </span>
+        )}
+        {stock.changePct != null && (
+          <span className={cn('text-[11px] w-12 text-right', up ? 'text-emerald-500' : 'text-red-500')}>
+            {up ? '+' : ''}{stock.changePct.toFixed(2)}%
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground/45 w-8 text-right">{ageText}</span>
+      </div>
+    </Link>
+  );
+}
+
+/* ── Upcoming dividends widget (unchanged behavior) ───────────────────────── */
 
 function UpcomingDividendsWidget() {
   const { data: dividends, isLoading } = useUpcomingDividends(60);

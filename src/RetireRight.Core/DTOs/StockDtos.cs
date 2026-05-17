@@ -17,7 +17,17 @@ public record StockSummaryDto(
     decimal? DividendCoverage,
     string[] OpportunityFlags,
     DateTime? ScrapedAt,
-    DateTime? ComputedAt);
+    DateTime? ComputedAt,
+    // ── Signal grammar (CapyTrade-evolution layer) ─────────────
+    string Verdict,           // ACCUMULATE / HOLD / REVIEW / AVOID / WATCH
+    decimal Confidence,        // 0..1
+    string ConvictionLevel,    // HIGH / MEDIUM / LOW
+    string SafetyTier,         // S / A / B / C / D
+    decimal? NetYield,         // gross × 0.85 (15% filer WHT)
+    string? WhyLine,           // ≤80 chars natural-language positive framing
+    string? Risks,             // ≤80 chars natural-language risk framing
+    int MetricCompleteness,    // 0..100 — % of populated metrics
+    int MetricsTotal);         // expected total (77 non-bank, 92 banks)
 
 public record StockDetailDto(
     StockSummaryDto Summary,

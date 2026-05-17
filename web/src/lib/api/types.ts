@@ -1,5 +1,9 @@
 // ── Stocks ────────────────────────────────────────────────────────────────────
 
+export type Verdict = 'ACCUMULATE' | 'HOLD' | 'REVIEW' | 'AVOID' | 'WATCH';
+export type ConvictionLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+export type SafetyTier = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
+
 export interface StockSummaryDto {
   id: number;
   symbol: string;
@@ -8,6 +12,9 @@ export interface StockSummaryDto {
   price: number | null;
   changePct: number | null;
   compositeScore: number | null;
+  dividendSafetyScore: number | null;
+  dividendGrowthScore: number | null;
+  valuationScore: number | null;
   opportunityScore: number | null;
   signal: string | null;
   dividendYield: number | null;
@@ -15,6 +22,16 @@ export interface StockSummaryDto {
   opportunityFlags: string[];
   scrapedAt: string | null;
   computedAt: string | null;
+  // Signal grammar (CapyTrade-evolution layer)
+  verdict: Verdict;
+  confidence: number;          // 0..1
+  convictionLevel: ConvictionLevel;
+  safetyTier: SafetyTier;
+  netYield: number | null;     // gross × 0.85
+  whyLine: string | null;
+  risks: string | null;
+  metricCompleteness: number;  // 0..100
+  metricsTotal: number;
 }
 
 export interface StockDetailDto {
