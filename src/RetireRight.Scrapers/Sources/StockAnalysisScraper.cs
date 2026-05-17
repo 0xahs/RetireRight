@@ -128,6 +128,35 @@ public class StockAnalysisScraper : BaseScraper
     private async Task<Dictionary<string, decimal?>?> FetchCashFlowAsync(
         IBrowserContext context, string symbol, CancellationToken ct)
     {
+        // One retry on timeout — StockAnalysis Svelte pages occasionally render
+        // slowly for thinly-covered tickers. A second attempt with a fresh page
+        // usually succeeds.
+        const int maxAttempts = 2;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var result = await TryFetchCashFlowAsync(context, symbol, attempt, ct);
+            if (result.kind != FetchOutcome.RetryableTimeout) return result.data;
+
+            if (attempt < maxAttempts)
+            {
+                Logger.LogInformation("[StockAnalysis] {Symbol}: timed out, retrying (attempt {Next}/{Max})",
+                    symbol, attempt + 1, maxAttempts);
+                await Task.Delay(2000, ct);
+            }
+            else
+            {
+                Logger.LogWarning("[StockAnalysis] {Symbol}: page timed out waiting for table after {Attempts} attempts",
+                    symbol, maxAttempts);
+            }
+        }
+        return null;
+    }
+
+    private enum FetchOutcome { Success, NoData, RetryableTimeout }
+
+    private async Task<(FetchOutcome kind, Dictionary<string, decimal?>? data)> TryFetchCashFlowAsync(
+        IBrowserContext context, string symbol, int attempt, CancellationToken ct)
+    {
         var url = $"{BaseUrl}/quote/psx/{symbol}/financials/cash-flow-statement/";
         var page = await context.NewPageAsync();
 
@@ -142,14 +171,15 @@ public class StockAnalysisScraper : BaseScraper
             if (response is null || !response.Ok)
             {
                 Logger.LogWarning("[StockAnalysis] {Symbol}: HTTP {Status}", symbol, response?.Status);
-                return null;
+                return (FetchOutcome.NoData, null);
             }
 
-            // Wait until the cash flow table has rendered its data rows
-            // (Svelte renders asynchronously — DOMContentLoaded fires before data appears)
+            // Wait until the cash flow table has rendered its data rows.
+            // Svelte renders asynchronously — DOMContentLoaded fires before data appears.
+            // 30s ceiling covers slow days; combined with one retry above we get ~2 minutes total.
             await page.WaitForFunctionAsync(
                 "() => Array.from(document.querySelectorAll('tr td')).some(td => td.textContent.trim() === 'Operating Cash Flow')",
-                null, new PageWaitForFunctionOptions { Timeout = 20000 });
+                null, new PageWaitForFunctionOptions { Timeout = 30000 });
 
             // EvaluateAsync<T> uses case-sensitive JSON by default — return a string and deserialize ourselves
             var rawJson = await page.EvaluateAsync<string>(ExtractScript);
@@ -157,7 +187,7 @@ public class StockAnalysisScraper : BaseScraper
             if (string.IsNullOrEmpty(rawJson) || rawJson is "{}" or "null")
             {
                 Logger.LogWarning("[StockAnalysis] {Symbol}: cash flow table not found or empty", symbol);
-                return null;
+                return (FetchOutcome.NoData, null);
             }
 
             var raw = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, RawCfEntry>>(
@@ -166,15 +196,14 @@ public class StockAnalysisScraper : BaseScraper
             if (raw is null || raw.Count == 0)
             {
                 Logger.LogWarning("[StockAnalysis] {Symbol}: failed to parse cash flow JSON", symbol);
-                return null;
+                return (FetchOutcome.NoData, null);
             }
 
-            return ParseCashFlow(raw);
+            return (FetchOutcome.Success, ParseCashFlow(raw));
         }
         catch (TimeoutException)
         {
-            Logger.LogWarning("[StockAnalysis] {Symbol}: page timed out waiting for table", symbol);
-            return null;
+            return (FetchOutcome.RetryableTimeout, null);
         }
         finally
         {

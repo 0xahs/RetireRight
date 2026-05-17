@@ -82,7 +82,9 @@ public sealed class PipelineJobService : BackgroundService
         _broadcaster.Publish(new PipelineEventDto($"{job.JobType.ToUpper()}_STARTED",
             job.JobType, null, $"{job.JobType} started.", 0, 0, DateTime.UtcNow));
 
-        using var scope = _scopeFactory.CreateScope();
+        // AsyncServiceScope ensures scrapers implementing only IAsyncDisposable
+        // (e.g. MacroScraper backed by Playwright) are disposed via DisposeAsync.
+        await using var scope = _scopeFactory.CreateAsyncScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<PipelineOrchestrator>();
 
         switch (job.JobType.ToLowerInvariant())
