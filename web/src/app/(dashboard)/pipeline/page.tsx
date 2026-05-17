@@ -105,7 +105,11 @@ function StatusPanel() {
                   {s.lastRunAt
                     ? new Date(s.lastRunAt).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })
                     : 'Never'}
-                  {s.stocksScraped != null && ` · ${s.stocksScraped} stocks`}
+                  {s.stocksScraped != null && s.stocksScraped > 0 && (
+                    s.name === 'Macro'
+                      ? ` · ${s.stocksScraped} indicators`
+                      : ` · ${s.stocksScraped} stocks`
+                  )}
                 </div>
               </div>
             </div>
@@ -390,7 +394,7 @@ function RunHistoryTable() {
                     </td>
                     <td className="text-right px-3 py-3">
                       <span className="num text-[13px] text-muted-foreground">
-                        {r.recordsScraped}/{r.symbolCount}
+                        {r.symbolCount > 0 ? `${r.recordsScraped}/${r.symbolCount}` : r.recordsScraped}
                       </span>
                     </td>
                     <td className="text-right pr-5 pl-3 py-3">

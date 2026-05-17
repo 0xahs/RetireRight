@@ -80,11 +80,12 @@ public sealed class PipelineOrchestrator
 
         foreach (var scraper in scrapers)
         {
+            var isMacro = scraper.Source == RetireRight.Core.Enums.DataSourceType.TradingEconomics;
             var run = await _scrapeRunRepo.CreateAsync(new ScrapeRun
             {
                 Source = scraper.Source.ToString(),
                 Mode = mode,
-                SymbolCount = targetSymbols.Length
+                SymbolCount = isMacro ? 0 : targetSymbols.Length
             }, ct);
 
             try
