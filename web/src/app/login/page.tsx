@@ -4,6 +4,7 @@ import { signIn } from 'next-auth/react';
 import { useState, FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { BrandMark, BrandWordmark } from '@/components/brand/brand-mark';
 
 function LoginForm() {
   const router = useRouter();
@@ -41,8 +42,8 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-background relative scanlines">
       {/* Ticker strip at top */}
       <div className="absolute top-0 left-0 right-0 h-7 flex items-center px-3 border-b border-border bg-background">
-        <span className="text-primary text-[9px] font-bold tracking-[0.18em]">▌ RR · TERMINAL</span>
-        <span className="ml-auto text-[9px] text-warm-dim tracking-[0.15em] uppercase font-bold num">
+        <span className="text-amber text-[9px] font-bold tracking-[0.22em] uppercase">▌ PSX TERMINAL</span>
+        <span className="ml-auto text-[9px] text-warm-dim tracking-[0.18em] uppercase font-bold num">
           SECURE · TLS-AUTH
         </span>
       </div>
@@ -54,16 +55,14 @@ function LoginForm() {
             <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ AUTH · SIGN IN</span>
           </div>
           <div className="p-6 space-y-5">
-            <div>
-              <h1 className="text-foreground font-bold text-[28px] tracking-tight leading-none">
-                RR
-                <span className="text-amber"> · </span>
-                TERMINAL
-              </h1>
-              <p className="text-warm-muted text-[10px] uppercase tracking-[0.18em] font-bold mt-2">
-                PSX DIVIDEND INTELLIGENCE
-              </p>
+            {/* Brand hero */}
+            <div className="flex items-center gap-3 pb-1">
+              <BrandMark size={42} />
+              <BrandWordmark size="lg" />
             </div>
+            <p className="text-warm-muted text-[10px] uppercase tracking-[0.22em] font-bold border-t border-border pt-3">
+              PSX DIVIDEND INTELLIGENCE
+            </p>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>

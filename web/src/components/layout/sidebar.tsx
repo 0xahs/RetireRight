@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { BrandMark, BrandWordmark } from '@/components/brand/brand-mark';
 
 const NAV_ITEMS = [
   { code: '01', href: '/dashboard',  label: 'Cockpit',     group: 'signal' },
@@ -31,19 +32,25 @@ export function Sidebar() {
   return (
     <aside className="w-52 shrink-0 flex flex-col border-r border-border bg-sidebar relative">
       {/* Top accent line — terminal signature */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-primary opacity-60" />
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
 
-      {/* Brand */}
-      <div className="h-11 flex items-center px-3 border-b border-border shrink-0">
-        <div className="flex items-baseline gap-2">
-          <span className="text-primary font-bold text-[13px] tracking-tight">RR</span>
-          <span className="text-foreground/55 text-[10px] uppercase tracking-[0.18em] font-medium">
-            Terminal
+      {/* Brand hero */}
+      <div className="px-4 pt-4 pb-3 border-b border-border shrink-0">
+        <Link href="/dashboard" className="flex items-center gap-3 group">
+          <BrandMark size={28} />
+          <BrandWordmark size="md" />
+        </Link>
+        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/60">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="block w-1.5 h-1.5 animate-pulse"
+              style={{ background: 'var(--verdict-acc)' }}
+            />
+            <span className="text-[9px] text-cyan-pos uppercase tracking-[0.22em] font-bold">LIVE</span>
+          </div>
+          <span className="text-[9px] text-warm-dim uppercase tracking-[0.22em] font-bold num">
+            v0.3
           </span>
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="block w-1.5 h-1.5 rounded-full bg-verdict-acc" style={{ background: 'var(--verdict-acc)' }} />
-          <span className="text-[9px] text-warm-muted">LIVE</span>
         </div>
       </div>
 
@@ -67,9 +74,9 @@ export function Sidebar() {
       </nav>
 
       {/* Footer status */}
-      <div className="border-t border-border px-3 py-2 shrink-0 flex items-center justify-between text-[9px]">
-        <span className="text-warm-dim font-medium">KSE-100 · PSX</span>
-        <span className="text-primary tracking-widest">v0.3</span>
+      <div className="border-t border-border px-3 py-2 shrink-0 flex items-center justify-between text-[9px] tracking-[0.22em] uppercase font-bold">
+        <span className="text-warm-dim">KSE-100 · PSX</span>
+        <span className="text-amber">2026</span>
       </div>
     </aside>
   );

@@ -5,6 +5,7 @@ import { signOut } from 'next-auth/react';
 import { LogOut, Search } from 'lucide-react';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
 import { useMacro } from '@/lib/api/queries';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { cn } from '@/lib/utils';
 
 import {
@@ -42,6 +43,10 @@ export function Topbar() {
   const { section, page } = usePageTitle(pathname);
   const { open, setOpen } = useCommandPalette();
   const { data: macro } = useMacro();
+
+  // Tab title: "<section> · <page>" or just "<page>"
+  const tabTitle = section ? `${section} · ${page}` : page;
+  useDocumentTitle(tabTitle === 'RETIRERIGHT' ? null : tabTitle);
 
   return (
     <>

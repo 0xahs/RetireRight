@@ -21,7 +21,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RetireRight — PSX Dividend Intelligence",
+  title: {
+    default: "RetireRight · PSX Terminal",
+    template: "%s · RetireRight",
+  },
   description: "Dividend investor intelligence for the Pakistan Stock Exchange",
 };
 
