@@ -4,7 +4,7 @@ using RetireRight.Core.DTOs;
 
 namespace RetireRight.Api.Jobs;
 
-public sealed record PipelineJob(string JobType, string[]? Symbols = null, string Mode = "live");
+public sealed record PipelineJob(string JobType, string[]? Symbols = null, string Mode = "live", string? Source = null);
 
 /// <summary>
 /// Background service that processes pipeline jobs (scrape, compute, export) sequentially.
@@ -88,7 +88,7 @@ public sealed class PipelineJobService : BackgroundService
         switch (job.JobType.ToLowerInvariant())
         {
             case "scrape":
-                await orchestrator.ScrapeAsync(job.Symbols, job.Mode,
+                await orchestrator.ScrapeAsync(job.Symbols, job.Mode, job.Source,
                     (source, scraped, total) =>
                     {
                         _broadcaster.UpdateActiveJob(new PipelineJobStatusDto(

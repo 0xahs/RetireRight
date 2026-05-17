@@ -61,6 +61,7 @@ public sealed class PipelineOrchestrator
     public async Task<ScrapeRunDto[]> ScrapeAsync(
         string[]? symbols,
         string mode,
+        string? sourceFilter,
         Action<string, int, int>? onProgress,
         CancellationToken ct)
     {
@@ -70,7 +71,14 @@ public sealed class PipelineOrchestrator
 
         var results = new List<ScrapeRunDto>();
 
-        foreach (var scraper in _scrapers)
+        var scrapers = sourceFilter is null
+            ? _scrapers
+            : _scrapers.Where(s => s.Source.ToString().Equals(sourceFilter, StringComparison.OrdinalIgnoreCase)
+                // allow "Macro" as alias for TradingEconomics
+                || (sourceFilter.Equals("Macro", StringComparison.OrdinalIgnoreCase)
+                    && s.Source == RetireRight.Core.Enums.DataSourceType.TradingEconomics));
+
+        foreach (var scraper in scrapers)
         {
             var run = await _scrapeRunRepo.CreateAsync(new ScrapeRun
             {

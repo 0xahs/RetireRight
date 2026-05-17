@@ -110,7 +110,7 @@ public static class PipelineEndpoints
         PipelineJobService jobService,
         CancellationToken ct)
     {
-        var job = new PipelineJob("scrape", request?.Symbols, request?.Mode ?? "live");
+        var job = new PipelineJob("scrape", request?.Symbols, request?.Mode ?? "live", request?.Source);
         var queued = await jobService.TriggerAsync(job, ct);
         return queued ? Results.Accepted() : Results.StatusCode(429);
     }
@@ -191,4 +191,4 @@ public static class PipelineEndpoints
     }
 }
 
-public record TriggerJobRequest(string[]? Symbols = null, string Mode = "live");
+public record TriggerJobRequest(string[]? Symbols = null, string Mode = "live", string? Source = null);

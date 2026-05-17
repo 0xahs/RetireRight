@@ -146,6 +146,23 @@ try
 
     var app = builder.Build();
 
+    // ── Startup: mark orphaned scrape runs as failed ───────────────────────────
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<RetireRight.Infrastructure.Database.RetireRightDbContext>();
+        var orphaned = db.ScrapeRuns.Where(r => r.Status == "running").ToList();
+        foreach (var run in orphaned)
+        {
+            run.Status = "failed";
+            run.CompletedAt ??= DateTime.UtcNow;
+        }
+        if (orphaned.Count > 0)
+        {
+            db.SaveChanges();
+            Log.Warning("Marked {Count} orphaned scrape run(s) as failed on startup", orphaned.Count);
+        }
+    }
+
     // ── Middleware ─────────────────────────────────────────────────────────────
     app.UseSerilogRequestLogging();
     app.UseCors();
