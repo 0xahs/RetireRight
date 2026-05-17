@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Command } from 'cmdk';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { StockLogo } from '@/components/stock-logo';
 import { useRouter } from 'next/navigation';
 import { useStocks } from '@/lib/api/queries';
 import { formatPct, formatScore } from '@/lib/utils/format';
@@ -23,17 +24,6 @@ const NAV_ITEMS = [
   { label: 'Export Center',    href: '/export',      icon: FileJson },
 ];
 
-function signalDot(signal: string | null | undefined): string {
-  switch (signal?.toLowerCase()) {
-    case 'strongbuy':  return '#10b981';
-    case 'buy':        return '#22c55e';
-    case 'accumulate': return '#84cc16';
-    case 'hold':       return '#eab308';
-    case 'sell':       return '#f97316';
-    case 'strongsell': return '#ef4444';
-    default:           return '#4b5563';
-  }
-}
 
 interface CommandPaletteProps {
   open: boolean;
@@ -133,11 +123,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                         'data-[selected=true]:bg-primary/[0.08]',
                       )}
                     >
-                      {/* Signal dot */}
-                      <span
-                        className="h-1.5 w-1.5 rounded-full shrink-0 mt-0.5"
-                        style={{ backgroundColor: signalDot(s.signal) }}
-                      />
+                      <StockLogo symbol={s.symbol} size={22} />
 
                       {/* Symbol + name */}
                       <div className="flex-1 min-w-0">

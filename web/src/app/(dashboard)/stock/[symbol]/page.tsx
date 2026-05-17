@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { formatRs, formatPct, formatScore } from '@/lib/utils/format';
 import { ScoreCard, SignalBadge, FlagBadge, SectorBadge } from '@/components/stock-ui';
+import { StockLogo } from '@/components/stock-logo';
 import { PriceChart } from '@/components/price-chart';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
@@ -38,12 +39,15 @@ export default function StockPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1.5">
-            <h1 className="num text-2xl font-bold tracking-tight">{summary.symbol}</h1>
-            <SectorBadge sector={summary.sector ?? ''} />
+        <div className="flex items-center gap-4">
+          <StockLogo symbol={summary.symbol} size={48} />
+          <div>
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <h1 className="num text-2xl font-bold tracking-tight">{summary.symbol}</h1>
+              <SectorBadge sector={summary.sector ?? ''} />
+            </div>
+            <p className="text-muted-foreground text-sm">{summary.name}</p>
           </div>
-          <p className="text-muted-foreground text-sm">{summary.name}</p>
         </div>
         <div className="text-right">
           <div className="num text-2xl font-bold tracking-tight">{formatRs(summary.price)}</div>

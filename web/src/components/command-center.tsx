@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { TrendingUp, TrendingDown, CalendarDays, AlertCircle, Clock, ArrowRight } from 'lucide-react';
 import { ScoreBar, SignalBadge } from '@/components/stock-ui';
+import { StockLogo } from '@/components/stock-logo';
 
 export function CommandCenterContent() {
   return (
@@ -153,14 +154,17 @@ function WatchlistSnapshot() {
                   return (
                     <tr key={s.symbol} className="row-hover relative border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
                       <td className="pl-5 pr-3 py-2.5">
-                        <div className="flex items-center gap-1.5">
-                          {freshness === 'stale' && (
-                            <AlertCircle className="h-2.5 w-2.5 text-amber-500/70 shrink-0" />
-                          )}
+                        <div className="flex items-center gap-2">
+                          <StockLogo symbol={s.symbol} size={24} />
                           <div>
-                            <Link href={`/stock/${s.symbol}`} className="num font-semibold text-[13px] hover:text-primary transition-colors">
-                              {s.symbol}
-                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              <Link href={`/stock/${s.symbol}`} className="num font-semibold text-[13px] hover:text-primary transition-colors">
+                                {s.symbol}
+                              </Link>
+                              {freshness === 'stale' && (
+                                <AlertCircle className="h-2.5 w-2.5 text-amber-500/70 shrink-0" />
+                              )}
+                            </div>
                             <div className="text-[10px] text-muted-foreground/60 truncate max-w-[100px] leading-tight">
                               {s.name}
                             </div>

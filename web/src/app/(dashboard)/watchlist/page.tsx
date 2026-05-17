@@ -13,6 +13,7 @@ import {
   ChevronUp, ChevronDown, ChevronsUpDown, Search,
 } from 'lucide-react';
 import { ScoreBar, SignalBadge, FlagBadge, SectorBadge } from '@/components/stock-ui';
+import { StockLogo } from '@/components/stock-logo';
 import type { StockSummaryDto } from '@/lib/api/types';
 
 type SortKey = 'symbol' | 'price' | 'dividendYield' | 'dividendCoverage' | 'compositeScore' | 'opportunityScore';
@@ -128,17 +129,20 @@ export default function WatchlistPage() {
                       >
                         {/* Symbol */}
                         <td className="pl-5 pr-3 py-3">
-                          <div className="flex items-center gap-2">
-                            {freshness === 'stale' && (
-                              <AlertCircle className="h-2.5 w-2.5 text-amber-500/70 shrink-0" />
-                            )}
+                          <div className="flex items-center gap-2.5">
+                            <StockLogo symbol={s.symbol} size={28} />
                             <div>
-                              <Link
-                                href={`/stock/${s.symbol}`}
-                                className="num font-semibold text-[13px] hover:text-primary transition-colors"
-                              >
-                                {s.symbol}
-                              </Link>
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  href={`/stock/${s.symbol}`}
+                                  className="num font-semibold text-[13px] hover:text-primary transition-colors"
+                                >
+                                  {s.symbol}
+                                </Link>
+                                {freshness === 'stale' && (
+                                  <AlertCircle className="h-2.5 w-2.5 text-amber-500/70 shrink-0" />
+                                )}
+                              </div>
                               <div className="text-[11px] text-muted-foreground/60 truncate max-w-[120px] leading-tight mt-0.5">
                                 {s.name}
                               </div>
