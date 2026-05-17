@@ -21,10 +21,32 @@ namespace RetireRight.Api.Services;
 /// </summary>
 public static class PlanGenerator
 {
-    private const int MaxPicks = 3;
-    private const decimal MinWeight = 0.20m;
-    private const decimal MaxWeight = 0.60m;
     private const decimal ConcentrationThreshold = 0.30m; // 30%
+
+    /// <summary>
+    /// Pick count scales with budget — bigger budget, more diversification.
+    /// Small budgets focus on highest-conviction names; large budgets spread.
+    /// </summary>
+    private static int MaxPicksForBudget(decimal budget) => budget switch
+    {
+        <= 8_000m  => 2,
+        <= 15_000m => 3,
+        <= 30_000m => 4,
+        _          => 5,
+    };
+
+    /// <summary>
+    /// Weight clamps scale with pick count so the renormalised total stays
+    /// achievable. Without scaling, 5 picks under a 20-60% bound can't
+    /// produce a valid distribution.
+    /// </summary>
+    private static (decimal min, decimal max) WeightBoundsForCount(int n) => n switch
+    {
+        <= 2 => (0.30m, 0.70m),
+        3    => (0.20m, 0.60m),
+        4    => (0.15m, 0.50m),
+        _    => (0.12m, 0.40m),
+    };
 
     public sealed record Candidate(
         Stock Stock,
@@ -54,13 +76,18 @@ public static class PlanGenerator
                 Notes: notes.ToArray());
         }
 
+        var maxPicks = MaxPicksForBudget(budget);
         var scored = eligible.Select(c => new { Candidate = c, Score = ScoreCandidate(c) }).ToList();
-        var ranked = scored.OrderByDescending(s => s.Score).Take(MaxPicks).ToList();
+        var ranked = scored.OrderByDescending(s => s.Score).Take(maxPicks).ToList();
 
-        // Normalise weights
+        if (ranked.Count < maxPicks)
+            notes.Add($"Budget would support {maxPicks} picks but only {ranked.Count} watchlist stocks are actionable today — increase coverage to diversify further.");
+
+        // Normalise weights with bounds scaled to pick count
         var totalScore = ranked.Sum(r => r.Score);
         var rawWeights = ranked.Select(r => totalScore > 0 ? r.Score / totalScore : 1m / ranked.Count).ToList();
-        var clampedWeights = ClampAndRenormalize(rawWeights);
+        var (minW, maxW) = WeightBoundsForCount(ranked.Count);
+        var clampedWeights = ClampAndRenormalize(rawWeights, minW, maxW);
 
         var picks = new List<PlanPickDto>();
         decimal totalAllocated = 0m;
@@ -182,12 +209,12 @@ public static class PlanGenerator
 
     // ── WEIGHT NORMALISATION ───────────────────────────────────────────────────
 
-    private static List<decimal> ClampAndRenormalize(IReadOnlyList<decimal> raw)
+    private static List<decimal> ClampAndRenormalize(IReadOnlyList<decimal> raw, decimal minW, decimal maxW)
     {
         if (raw.Count == 0) return new List<decimal>();
         if (raw.Count == 1) return new List<decimal> { 1m };
 
-        var clamped = raw.Select(w => Math.Clamp(w, MinWeight, MaxWeight)).ToList();
+        var clamped = raw.Select(w => Math.Clamp(w, minW, maxW)).ToList();
         var sum = clamped.Sum();
         if (sum <= 0) return raw.Select(_ => 1m / raw.Count).ToList();
         // Re-normalise so weights sum to 1 again
