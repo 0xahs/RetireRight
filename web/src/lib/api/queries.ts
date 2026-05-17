@@ -201,9 +201,12 @@ export function usePipelineRuns(page = 1) {
 export function useTriggerScrape() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (symbols?: string[]) =>
-      api.post<{ runId: string; queued: boolean }>('/api/pipeline/scrape', { symbols }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pipelineStatus }),
+    mutationFn: (opts?: { symbols?: string[]; source?: string }) =>
+      api.post<{ runId: string; queued: boolean }>('/api/pipeline/scrape', opts ?? {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.pipelineStatus });
+      qc.invalidateQueries({ queryKey: ['pipeline', 'runs'] });
+    },
   });
 }
 

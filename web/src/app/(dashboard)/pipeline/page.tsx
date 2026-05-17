@@ -128,12 +128,22 @@ function StatusPanel() {
   );
 }
 
+const SOURCES = [
+  { key: 'Sarmaaya',      label: 'Sarmaaya',      description: 'Prices, fundamentals, dividends' },
+  { key: 'StockAnalysis', label: 'StockAnalysis',  description: 'Cash flow metrics' },
+  { key: 'Macro',         label: 'Macro',          description: 'PKR/USD, Brent, SBP rate' },
+];
+
 function TriggerPanel() {
   const scrape = useTriggerScrape();
   const compute = useTriggerCompute();
   const exportRun = useTriggerExport();
-  const anySuccess = scrape.isSuccess || compute.isSuccess || exportRun.isSuccess;
-  const anyError = scrape.isError || compute.isError || exportRun.isError;
+  const [pendingSource, setPendingSource] = useState<string | null>(null);
+
+  const triggerSource = (source: string) => {
+    setPendingSource(source);
+    scrape.mutate({ source }, { onSettled: () => setPendingSource(null) });
+  };
 
   return (
     <Card className="border-border/50 card-panel overflow-hidden">
@@ -143,37 +153,76 @@ function TriggerPanel() {
           <CardTitle className="text-sm font-semibold">Run Jobs</CardTitle>
         </div>
       </CardHeader>
-      <CardContent className="p-4 space-y-2">
-        <Button
-          onClick={() => scrape.mutate(undefined)}
-          disabled={scrape.isPending}
-          className="w-full h-8 text-xs gap-2 cursor-pointer"
-        >
-          <Play className="h-3.5 w-3.5" />
-          {scrape.isPending ? 'Queuing…' : 'Scrape All'}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => compute.mutate(undefined)}
-          disabled={compute.isPending}
-          className="w-full h-8 text-xs gap-2 cursor-pointer border-border/50"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          {compute.isPending ? 'Queuing…' : 'Compute Metrics'}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => exportRun.mutate()}
-          disabled={exportRun.isPending}
-          className="w-full h-8 text-xs gap-2 cursor-pointer border-border/50"
-        >
-          <Download className="h-3.5 w-3.5" />
-          {exportRun.isPending ? 'Queuing…' : 'Export Data'}
-        </Button>
-        {anySuccess && (
+      <CardContent className="p-4 space-y-3">
+        {/* Per-source scrape buttons */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Scrape</p>
+          <div className="space-y-1.5">
+            {SOURCES.map((s) => (
+              <div key={s.key} className="flex items-center gap-2 p-2 rounded-sm border border-border/30 bg-muted/[0.02]">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-medium">{s.label}</div>
+                  <div className="text-[10px] text-muted-foreground/50">{s.description}</div>
+                </div>
+                <button
+                  onClick={() => triggerSource(s.key)}
+                  disabled={scrape.isPending}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-sm text-[10px] font-semibold uppercase tracking-wide transition-colors cursor-pointer',
+                    'border border-primary/30 text-primary hover:bg-primary/10',
+                    scrape.isPending && 'opacity-50 cursor-not-allowed',
+                  )}
+                >
+                  {pendingSource === s.key ? (
+                    <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                  ) : (
+                    <Play className="h-2.5 w-2.5" />
+                  )}
+                  {pendingSource === s.key ? 'Queuing' : 'Run'}
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => scrape.mutate({})}
+              disabled={scrape.isPending}
+              className={cn(
+                'w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] font-semibold transition-colors cursor-pointer',
+                'bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20',
+                scrape.isPending && 'opacity-50 cursor-not-allowed',
+              )}
+            >
+              <Play className="h-3 w-3" />
+              {scrape.isPending && !pendingSource ? 'Queuing…' : 'Scrape All Sources'}
+            </button>
+          </div>
+        </div>
+
+        <div className="border-t border-border/20 pt-2 space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Pipeline</p>
+          <Button
+            variant="outline"
+            onClick={() => compute.mutate(undefined)}
+            disabled={compute.isPending}
+            className="w-full h-8 text-xs gap-2 cursor-pointer border-border/50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            {compute.isPending ? 'Queuing…' : 'Compute Metrics'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportRun.mutate()}
+            disabled={exportRun.isPending}
+            className="w-full h-8 text-xs gap-2 cursor-pointer border-border/50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {exportRun.isPending ? 'Queuing…' : 'Export Data'}
+          </Button>
+        </div>
+
+        {(scrape.isSuccess || compute.isSuccess || exportRun.isSuccess) && (
           <p className="text-[11px] text-emerald-500 text-center">Job queued successfully</p>
         )}
-        {anyError && (
+        {(scrape.isError || compute.isError || exportRun.isError) && (
           <p className="text-[11px] text-red-500 text-center">Failed to queue job</p>
         )}
       </CardContent>
