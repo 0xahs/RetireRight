@@ -4,6 +4,7 @@ import {
   usePipelineStatus, usePipelineRuns, useTriggerScrape,
   useTriggerCompute, useTriggerExport, useScheduleConfig, useUpdateScheduleConfig,
 } from '@/lib/api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,9 +13,17 @@ import {
   Play, RefreshCw, Download, CheckCircle, XCircle,
   Clock, Activity, Zap, CalendarClock,
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:59931';
+
+interface LiveProgress {
+  jobType: string;
+  source: string | null;
+  progress: number;
+  total: number;
+  running: boolean;
+}
 
 function statusChip(status: string) {
   switch (status) {
@@ -25,35 +34,104 @@ function statusChip(status: string) {
   }
 }
 
+// Shared SSE hook — one connection, distributes events to subscribers
+function usePipelineEvents(onEvent: (evt: { eventType: string; symbol?: string; message?: string; progress?: number; total?: number }) => void) {
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    const es = new EventSource(`${API_URL}/api/pipeline/events`);
+    const handler = (e: MessageEvent) => {
+      try { onEventRef.current(JSON.parse(e.data)); } catch {}
+    };
+    const types = ['JOB_QUEUED','SCRAPE_STARTED','SCRAPE_PROGRESS','SCRAPE_COMPLETE',
+                   'COMPUTE_PROGRESS','COMPUTE_COMPLETE','EXPORT_COMPLETE','JOB_FAILED'];
+    types.forEach(t => es.addEventListener(t, handler));
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, []);
+}
+
 export default function PipelinePage() {
+  const qc = useQueryClient();
+  const [liveProgress, setLiveProgress] = useState<LiveProgress | null>(null);
+  const [events, setEvents] = useState<string[]>([]);
+
+  const handleEvent = useCallback((evt: { eventType: string; symbol?: string; message?: string; progress?: number; total?: number }) => {
+    const ts = new Date().toLocaleTimeString();
+    const label = `[${ts}] ${evt.eventType}${evt.symbol ? ` ${evt.symbol}` : ''}${evt.message ? `: ${evt.message}` : ''}`;
+    setEvents(prev => [...prev.slice(-29), label]);
+
+    if (evt.eventType === 'SCRAPE_PROGRESS' || evt.eventType === 'COMPUTE_PROGRESS') {
+      setLiveProgress({
+        jobType: evt.eventType === 'SCRAPE_PROGRESS' ? 'scrape' : 'compute',
+        source: evt.symbol ?? null,
+        progress: evt.progress ?? 0,
+        total: evt.total ?? 0,
+        running: true,
+      });
+    } else if (['SCRAPE_COMPLETE','COMPUTE_COMPLETE','EXPORT_COMPLETE','JOB_FAILED'].includes(evt.eventType)) {
+      setLiveProgress(null);
+      // Refresh status + run history after job completes
+      qc.invalidateQueries({ queryKey: ['pipeline', 'status'] });
+      qc.invalidateQueries({ queryKey: ['pipeline', 'runs'] });
+    } else if (evt.eventType === 'JOB_QUEUED' || evt.eventType.endsWith('_STARTED')) {
+      qc.invalidateQueries({ queryKey: ['pipeline', 'status'] });
+    }
+  }, [qc]);
+
+  usePipelineEvents(handleEvent);
+
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Pipeline Monitor</h1>
-        <p className="text-muted-foreground text-xs mt-0.5">
-          Scrape, compute, and export pipeline management
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Pipeline Monitor</h1>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            Scrape, compute, and export pipeline management
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            qc.invalidateQueries({ queryKey: ['pipeline', 'status'] });
+            qc.invalidateQueries({ queryKey: ['pipeline', 'runs'] });
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-border/50 text-[11px] text-muted-foreground hover:text-foreground hover:border-border transition-colors cursor-pointer"
+        >
+          <RefreshCw className="h-3 w-3" />
+          Refresh
+        </button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          <StatusPanel />
+          <StatusPanel liveProgress={liveProgress} />
           <RunHistoryTable />
         </div>
         <div className="space-y-4">
           <TriggerPanel />
           <SchedulePanel />
-          <LiveEventsPanel />
+          <LiveEventsLog events={events} />
         </div>
       </div>
     </div>
   );
 }
 
-function StatusPanel() {
+function StatusPanel({ liveProgress }: { liveProgress: LiveProgress | null }) {
   const { data, isLoading } = usePipelineStatus();
 
   if (isLoading) return <Skeleton className="h-40 w-full rounded-sm" />;
   if (!data) return null;
+
+  const active = liveProgress ?? (data.activeJob ? {
+    jobType: data.activeJob.jobType,
+    source: data.activeJob.currentSymbol ?? null,
+    progress: data.activeJob.progress ?? 0,
+    total: data.activeJob.total ?? 0,
+    running: true,
+  } : null);
+
+  const pct = active && active.total > 0 ? (active.progress / active.total) * 100 : 0;
 
   return (
     <Card className="border-border/50 card-panel overflow-hidden">
@@ -61,27 +139,34 @@ function StatusPanel() {
         <div className="flex items-center gap-2">
           <Activity className="h-3.5 w-3.5 text-primary" />
           <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
-          {data.activeJob && (
+          {active && (
             <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-sm border border-blue-500/25 bg-blue-500/10 text-blue-400 font-medium uppercase tracking-wide animate-pulse">
-              {data.activeJob.jobType} running
+              {active.jobType} running
             </span>
           )}
         </div>
       </CardHeader>
       <CardContent className="p-4 space-y-3">
-        {data.activeJob && (
+        {active && (
           <div className="rounded-sm border border-primary/15 bg-primary/[0.04] p-3 space-y-2">
             <div className="flex justify-between text-[12px]">
-              <span className="font-medium">{data.activeJob.jobType}</span>
-              <span className="num text-muted-foreground">{data.activeJob.progress}/{data.activeJob.total}</span>
+              <span className="font-medium capitalize">{active.jobType}</span>
+              <span className="num text-muted-foreground">
+                {active.total > 0 ? `${active.progress}/${active.total}` : 'running…'}
+              </span>
             </div>
-            {data.activeJob.currentSymbol && (
-              <div className="num text-[11px] text-muted-foreground">Processing: {data.activeJob.currentSymbol}</div>
+            {active.source && (
+              <div className="num text-[11px] text-muted-foreground">
+                Processing: <span className="text-foreground">{active.source}</span>
+              </div>
             )}
-            <div className="w-full bg-border/40 rounded-full h-1 mt-1">
+            <div className="w-full bg-border/40 rounded-full h-1.5 mt-1 overflow-hidden">
               <div
-                className="bg-primary h-1 rounded-full transition-all duration-300"
-                style={{ width: `${data.activeJob.total > 0 ? (data.activeJob.progress / data.activeJob.total) * 100 : 0}%` }}
+                className={cn(
+                  'h-1.5 rounded-full transition-all duration-500',
+                  active.total > 0 ? 'bg-primary' : 'bg-primary/60 animate-pulse w-full',
+                )}
+                style={{ width: active.total > 0 ? `${pct}%` : '100%' }}
               />
             </div>
           </div>
@@ -295,27 +380,8 @@ function SchedulePanel() {
   );
 }
 
-function LiveEventsPanel() {
-  const [events, setEvents] = useState<string[]>([]);
+function LiveEventsLog({ events }: { events: string[] }) {
   const eventsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const es = new EventSource(`${API_URL}/api/pipeline/events`);
-    const handler = (e: MessageEvent) => {
-      try {
-        const evt = JSON.parse(e.data);
-        const ts = evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : '';
-        const label = `[${ts}] ${evt.eventType}${evt.symbol ? ` ${evt.symbol}` : ''}${evt.message ? `: ${evt.message}` : ''}`;
-        setEvents((prev) => [...prev.slice(-19), label]);
-      } catch {
-        setEvents((prev) => [...prev.slice(-19), e.data]);
-      }
-    };
-    const types = ['JOB_QUEUED', 'SCRAPE_STARTED', 'SCRAPE_PROGRESS', 'SCRAPE_COMPLETE', 'COMPUTE_COMPLETE', 'EXPORT_COMPLETE', 'JOB_FAILED'];
-    types.forEach((type) => es.addEventListener(type, handler));
-    es.onerror = () => es.close();
-    return () => es.close();
-  }, []);
 
   useEffect(() => {
     if (eventsRef.current) eventsRef.current.scrollTop = eventsRef.current.scrollHeight;
