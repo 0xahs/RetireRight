@@ -26,6 +26,10 @@ public static class PipelineEndpoints
         settingsGroup.MapPut("/schedule", UpdateScheduleAsync).WithName("UpdateSchedule");
     }
 
+    private static readonly string[] AllSources = ["Sarmaaya", "StockAnalysis", "TradingEconomics"];
+    private static string FriendlySourceName(string source) =>
+        source == "TradingEconomics" ? "Macro" : source;
+
     private static async Task<IResult> GetStatusAsync(
         PipelineJobService jobService,
         PipelineEventBroadcaster broadcaster,
@@ -34,26 +38,34 @@ public static class PipelineEndpoints
     {
         var recentRuns = await db.ScrapeRuns
             .OrderByDescending(r => r.StartedAt)
-            .Take(10)
+            .Take(30)
             .ToListAsync(ct);
 
-        var sourceGroups = recentRuns
-            .GroupBy(r => r.Source)
-            .Select(g =>
+        var runsBySource = recentRuns.GroupBy(r => r.Source).ToDictionary(g => g.Key, g => g.First());
+
+        var sourceGroups = AllSources.Select(source =>
+        {
+            if (runsBySource.TryGetValue(source, out var latest))
             {
-                var latest = g.First();
                 var duration = latest.CompletedAt.HasValue
                     ? latest.CompletedAt.Value - latest.StartedAt
                     : (TimeSpan?)null;
                 return new SourceStatusDto(
-                    Name: g.Key,
+                    Name: FriendlySourceName(source),
                     Status: latest.Status,
                     LastRunAt: latest.StartedAt,
                     StocksScraped: latest.RecordsScraped,
                     StocksFailed: latest.RecordsFailed,
                     Duration: duration);
-            })
-            .ToArray();
+            }
+            return new SourceStatusDto(
+                Name: FriendlySourceName(source),
+                Status: "never",
+                LastRunAt: null,
+                StocksScraped: null,
+                StocksFailed: null,
+                Duration: null);
+        }).ToArray();
 
         var lastComputed = await db.ComputedMetrics
             .OrderByDescending(c => c.UpdatedAt)
