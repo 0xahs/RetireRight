@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const ROUTE_LABELS: Record<string, string> = {
-  '/dashboard':  'COCKPIT',
+  '/dashboard':  'BRIEF',
   '/watchlist':  'WATCHLIST',
   '/screener':   'SCREENER',
   '/compare':    'COMPARE',

@@ -89,7 +89,7 @@ function PageHeading() {
           ┌── {greeting} · AHMAD
         </div>
         <h1 className="text-foreground font-bold text-[20px] tracking-tight">
-          PSX INTEL · COCKPIT
+          PSX INTEL · BRIEF
         </h1>
       </div>
       <div className="text-right">

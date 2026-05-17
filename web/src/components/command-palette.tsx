@@ -7,23 +7,28 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { StockLogo } from '@/components/stock-logo';
 import { useRouter } from 'next/navigation';
 import { useStocks } from '@/lib/api/queries';
-import { formatPct, formatScore } from '@/lib/utils/format';
 import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard, List, Filter, CalendarDays,
-  Briefcase, Activity, FileJson, Search,
-} from 'lucide-react';
+import { scoreTone, yieldTone } from '@/lib/utils/format';
+import type { Verdict } from '@/lib/api/types';
 
-const NAV_ITEMS = [
-  { label: 'Command Center',   href: '/dashboard',  icon: LayoutDashboard },
-  { label: 'Watchlist',        href: '/watchlist',   icon: List },
-  { label: 'Screener',         href: '/screener',    icon: Filter },
-  { label: 'Dividend Calendar',href: '/dividends',   icon: CalendarDays },
-  { label: 'Portfolio',        href: '/portfolio',   icon: Briefcase },
-  { label: 'Pipeline Monitor', href: '/pipeline',    icon: Activity },
-  { label: 'Export Center',    href: '/export',      icon: FileJson },
+const NAV_ITEMS: { code: string; label: string; href: string; group: string }[] = [
+  { code: '01', label: 'BRIEF',       href: '/dashboard', group: 'SIGNAL' },
+  { code: '02', label: 'WATCHLIST',   href: '/watchlist', group: 'SIGNAL' },
+  { code: '03', label: 'SCREENER',    href: '/screener',  group: 'SIGNAL' },
+  { code: '04', label: 'COMPARE',     href: '/compare',   group: 'SIGNAL' },
+  { code: '05', label: 'CALENDAR',    href: '/dividends', group: 'DATA' },
+  { code: '06', label: 'PORTFOLIO',   href: '/portfolio', group: 'DATA' },
+  { code: '07', label: 'PIPELINE',    href: '/pipeline',  group: 'INFRA' },
+  { code: '08', label: 'EXPORT',      href: '/export',    group: 'INFRA' },
 ];
 
+const VERDICT_DOT: Record<Verdict, string> = {
+  ACCUMULATE: 'bg-[oklch(0.79_0.13_180)]',
+  HOLD:       'bg-[oklch(0.55_0.015_80)]',
+  REVIEW:     'bg-[oklch(0.78_0.16_75)]',
+  AVOID:      'bg-[oklch(0.68_0.22_25)]',
+  WATCH:      'bg-[oklch(0.72_0.10_230)]',
+};
 
 interface CommandPaletteProps {
   open: boolean;
@@ -50,124 +55,171 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <DialogPrimitive.Title>Command Palette</DialogPrimitive.Title>
       </VisuallyHidden.Root>
 
-      {/* Overlay */}
+      {/* Overlay — slight scanline */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/70 scanlines"
         onClick={() => onOpenChange(false)}
       />
 
       {/* Panel */}
-      <div className="relative mx-auto mt-[15vh] w-full max-w-lg">
-        <div className="bg-card border border-border/60 rounded-sm shadow-2xl overflow-hidden"
-          style={{ boxShadow: '0 25px 60px oklch(0 0 0 / 60%), inset 0 1px 0 oklch(1 0 0 / 8%)' }}
-        >
+      <div className="relative mx-auto mt-[14vh] w-full max-w-xl">
+        <div className="panel-strong bg-card relative">
+          {/* Amber accent rail */}
+          <span aria-hidden className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+
+          {/* Panel-strip header */}
+          <div className="panel-strip px-3 py-1.5 flex items-center justify-between">
+            <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">
+              ▌ COMMAND
+            </span>
+            <span className="text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold num">
+              SEARCH · NAVIGATE
+            </span>
+          </div>
+
           {/* Search input row */}
-          <div className="flex items-center gap-3 px-4 border-b border-border/40">
-            <Search className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-1 border-b border-border">
+            <span className="text-amber text-[12px] font-bold">▶</span>
             <Command.Input
-              placeholder="Search stocks, pages…"
-              className="flex-1 py-3.5 bg-transparent num text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+              placeholder="TYPE TO SEARCH · STOCKS / PAGES / METRICS"
+              className="flex-1 py-3 bg-transparent num text-[12px] uppercase tracking-[0.05em] font-bold text-foreground placeholder:text-warm-dim focus:outline-none"
             />
-            <kbd className="shrink-0 text-[9px] text-muted-foreground/40 font-mono border border-border/30 rounded px-1 py-0.5">
+            <kbd className="shrink-0 text-[9px] text-warm-dim font-bold border border-border px-1.5 py-0.5 uppercase tracking-[0.15em]">
               ESC
             </kbd>
           </div>
 
           {/* Results list */}
-          <Command.List className="max-h-[360px] overflow-y-auto py-2">
-            <Command.Empty className="px-4 py-8 text-center text-[12px] text-muted-foreground/50">
-              No results found.
+          <Command.List className="max-h-[380px] overflow-y-auto py-1">
+            <Command.Empty className="px-4 py-8 text-center text-[10px] uppercase tracking-[0.18em] text-warm-dim font-bold">
+              ░░ NO RESULTS ░░
             </Command.Empty>
 
             {/* Navigation group */}
             <Command.Group
-              heading="Navigation"
-              className="[&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-muted-foreground/40"
+              heading="NAVIGATION"
+              className={cn(
+                '[&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:py-1.5',
+                '[&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:font-bold',
+                '[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.22em]',
+                '[&_[cmdk-group-heading]]:text-amber',
+                '[&_[cmdk-group-heading]]:bg-white/[0.015]',
+                '[&_[cmdk-group-heading]]:border-y [&_[cmdk-group-heading]]:border-border',
+              )}
             >
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Command.Item
-                    key={item.href}
-                    value={item.label}
-                    onSelect={() => navigate(item.href)}
-                    className={cn(
-                      'group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors',
-                      'data-[selected=true]:bg-primary/[0.08]',
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 group-data-[selected=true]:text-primary" />
-                    <span className="text-[13px] text-foreground/80 group-data-[selected=true]:text-foreground">
-                      {item.label}
-                    </span>
-                  </Command.Item>
-                );
-              })}
+              {NAV_ITEMS.map((item) => (
+                <Command.Item
+                  key={item.href}
+                  value={`${item.code} ${item.label} ${item.group}`}
+                  onSelect={() => navigate(item.href)}
+                  className={cn(
+                    'group flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors num',
+                    'data-[selected=true]:bg-primary/[0.08]',
+                    'data-[selected=true]:shadow-[inset_3px_0_0_var(--primary)]',
+                  )}
+                >
+                  <span className={cn(
+                    'text-[9px] font-bold tabular-nums tracking-[0.05em] w-6',
+                    'text-warm-dim group-data-[selected=true]:text-amber',
+                  )}>
+                    {item.code}
+                  </span>
+                  <span className={cn(
+                    'text-[11px] uppercase tracking-[0.1em] font-bold flex-1',
+                    'text-foreground/80 group-data-[selected=true]:text-amber',
+                  )}>
+                    {item.label}
+                  </span>
+                  <span className={cn(
+                    'text-[8px] uppercase tracking-[0.18em] font-bold',
+                    'text-warm-dim group-data-[selected=true]:text-amber/60',
+                  )}>
+                    {item.group}
+                  </span>
+                  <span className={cn(
+                    'text-amber text-[12px] opacity-0',
+                    'group-data-[selected=true]:opacity-100',
+                  )}>
+                    ▶
+                  </span>
+                </Command.Item>
+              ))}
             </Command.Group>
 
             {/* Stocks group */}
             {stocks && stocks.length > 0 && (
-              <>
-                <div className="my-1 mx-4 border-t border-border/20" />
-                <Command.Group
-                  heading="Stocks"
-                  className="[&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-muted-foreground/40"
-                >
-                  {stocks.map((s) => (
-                    <Command.Item
-                      key={s.symbol}
-                      value={`${s.symbol} ${s.name} ${s.sector}`}
-                      onSelect={() => navigate(`/stock/${s.symbol}`)}
-                      className={cn(
-                        'group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors',
-                        'data-[selected=true]:bg-primary/[0.08]',
+              <Command.Group
+                heading="INSTRUMENTS"
+                className={cn(
+                  '[&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:py-1.5',
+                  '[&_[cmdk-group-heading]]:text-[9px] [&_[cmdk-group-heading]]:font-bold',
+                  '[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.22em]',
+                  '[&_[cmdk-group-heading]]:text-amber',
+                  '[&_[cmdk-group-heading]]:bg-white/[0.015]',
+                  '[&_[cmdk-group-heading]]:border-y [&_[cmdk-group-heading]]:border-border',
+                )}
+              >
+                {stocks.map((s) => (
+                  <Command.Item
+                    key={s.symbol}
+                    value={`${s.symbol} ${s.name} ${s.sector} ${s.verdict}`}
+                    onSelect={() => navigate(`/stock/${s.symbol}`)}
+                    className={cn(
+                      'group flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors num',
+                      'data-[selected=true]:bg-primary/[0.08]',
+                      'data-[selected=true]:shadow-[inset_3px_0_0_var(--primary)]',
+                    )}
+                  >
+                    <StockLogo symbol={s.symbol} size={22} />
+
+                    {/* Symbol + verdict dot + name */}
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', VERDICT_DOT[s.verdict])} />
+                      <span className={cn(
+                        'font-bold text-[12px] tracking-[0.05em] shrink-0',
+                        'text-foreground group-data-[selected=true]:text-amber',
+                      )}>
+                        {s.symbol}
+                      </span>
+                      <span className="text-[9px] uppercase tracking-[0.12em] text-warm-dim font-medium truncate">
+                        {s.sector}
+                      </span>
+                    </div>
+
+                    {/* Right side: yield + composite */}
+                    <div className="shrink-0 flex items-center gap-3 text-[10px] tabular-nums font-bold">
+                      {s.netYield != null && (
+                        <span className={cn('w-12 text-right', yieldTone(s.netYield))}>
+                          {s.netYield.toFixed(1)}%
+                        </span>
                       )}
-                    >
-                      <StockLogo symbol={s.symbol} size={22} />
-
-                      {/* Symbol + name */}
-                      <div className="flex-1 min-w-0">
-                        <span className="num font-semibold text-[13px] text-foreground group-data-[selected=true]:text-primary">
-                          {s.symbol}
+                      {s.compositeScore != null && (
+                        <span className={cn('w-8 text-right', scoreTone(s.compositeScore))}>
+                          {Math.round(s.compositeScore)}
                         </span>
-                        <span className="ml-2 text-[11px] text-muted-foreground/60 truncate">
-                          {s.name}
-                        </span>
-                      </div>
-
-                      {/* Right side: yield + score */}
-                      <div className="shrink-0 flex items-center gap-3 num text-[11px] text-muted-foreground/50">
-                        {s.dividendYield != null && (
-                          <span>{formatPct(s.dividendYield)}</span>
-                        )}
-                        {s.compositeScore != null && (
-                          <span className={cn(
-                            'font-medium',
-                            s.compositeScore >= 70 ? 'text-emerald-500/70' :
-                            s.compositeScore >= 50 ? 'text-yellow-500/70' :
-                            'text-red-500/70',
-                          )}>
-                            {formatScore(s.compositeScore)}
-                          </span>
-                        )}
-                      </div>
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-              </>
+                      )}
+                    </div>
+                  </Command.Item>
+                ))}
+              </Command.Group>
             )}
           </Command.List>
 
-          {/* Footer hint */}
-          <div className="border-t border-border/30 px-4 py-2 flex items-center gap-4 bg-muted/[0.03]">
-            <span className="num text-[9px] text-muted-foreground/35 flex items-center gap-1">
-              <kbd className="border border-border/30 rounded px-1">↑↓</kbd> navigate
-            </span>
-            <span className="num text-[9px] text-muted-foreground/35 flex items-center gap-1">
-              <kbd className="border border-border/30 rounded px-1">↵</kbd> select
-            </span>
-            <span className="num text-[9px] text-muted-foreground/35 flex items-center gap-1">
-              <kbd className="border border-border/30 rounded px-1">esc</kbd> close
+          {/* Footer — terminal hints */}
+          <div className="border-t border-border px-3 py-2 flex items-center justify-between bg-white/[0.015]">
+            <div className="flex items-center gap-3 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">
+              <span className="flex items-center gap-1.5">
+                <kbd className="border border-border px-1 py-px num">↑↓</kbd> NAV
+              </span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="border border-border px-1 py-px num">↵</kbd> OPEN
+              </span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="border border-border px-1 py-px num">ESC</kbd> CLOSE
+              </span>
+            </div>
+            <span className="text-[9px] uppercase tracking-[0.22em] text-amber font-bold">
+              ▌ RR · TERMINAL
             </span>
           </div>
         </div>

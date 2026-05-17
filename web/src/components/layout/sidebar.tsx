@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { BrandMark, BrandWordmark } from '@/components/brand/brand-mark';
 
 const NAV_ITEMS = [
-  { code: '01', href: '/dashboard',  label: 'Cockpit',     group: 'signal' },
+  { code: '01', href: '/dashboard',  label: 'Brief',       group: 'signal' },
   { code: '02', href: '/watchlist',  label: 'Watchlist',   group: 'signal' },
   { code: '03', href: '/screener',   label: 'Screener',    group: 'signal' },
   { code: '04', href: '/compare',    label: 'Compare',     group: 'signal' },
