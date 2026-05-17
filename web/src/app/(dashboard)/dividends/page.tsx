@@ -1,16 +1,20 @@
 'use client';
 
 import { useUpcomingDividends } from '@/lib/api/queries';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { CalendarDays } from 'lucide-react';
 
 function urgencyClass(days: number) {
-  if (days <= 3) return 'text-red-400 border-red-500/30 bg-red-500/10';
-  if (days <= 7) return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-  return 'text-muted-foreground border-border/40 bg-muted/20';
+  if (days <= 3) return 'text-warn border-[oklch(0.68_0.22_25_/_40%)] bg-[oklch(0.68_0.22_25_/_10%)]';
+  if (days <= 7) return 'text-amber border-[oklch(0.78_0.16_75_/_40%)] bg-[oklch(0.78_0.16_75_/_10%)]';
+  return 'text-warm-muted border-border bg-white/[0.02]';
+}
+
+function urgencyBar(days: number) {
+  if (days <= 3) return 'verdict-bar-avd';
+  if (days <= 7) return 'verdict-bar-rev';
+  return '';
 }
 
 export default function DividendsPage() {
@@ -19,97 +23,83 @@ export default function DividendsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Dividend Calendar</h1>
-        <p className="text-muted-foreground text-xs mt-0.5">
-          Upcoming ex-dates in the next 90 days
+        <div className="text-[9px] text-amber font-bold tracking-[0.22em] uppercase mb-1">
+          ┌── DIVIDEND CALENDAR
+        </div>
+        <h1 className="text-foreground font-bold text-[20px] tracking-tight">
+          EX-DATES · NEXT 90 DAYS
           {dividends && (
-            <> · <span className="num text-foreground font-medium">{dividends.length}</span> upcoming</>
+            <span className="text-warm-muted text-[12px] ml-2">
+              · <span className="num">{dividends.length}</span> UPCOMING
+            </span>
           )}
-        </p>
+        </h1>
       </div>
 
-      <Card className="overflow-hidden border-border/50 card-panel">
-        <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-primary" />
-            <CardTitle className="text-sm font-semibold">Upcoming Ex-Dates</CardTitle>
+      <div className="panel">
+        <div className="panel-strip px-4 py-1.5 flex items-center justify-between">
+          <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ UPCOMING EX-DATES</span>
+          <span className="text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">RED ≤3D · AMBER ≤7D</span>
+        </div>
+        {isLoading ? (
+          <div className="p-4 space-y-1.5">
+            {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" style={{ borderRadius: 0 }} />)}
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-5 space-y-2">
-              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-sm" />)}
-            </div>
-          ) : !dividends?.length ? (
-            <p className="px-6 py-10 text-sm text-muted-foreground text-center">
-              No upcoming dividends in the next 90 days
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/40" style={{ background: 'oklch(1 0 0 / 2%)' }}>
-                    <th className="text-left pl-5 pr-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Stock</th>
-                    <th className="text-left px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Ex Date</th>
-                    <th className="text-left px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Last Buy</th>
-                    <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">DPS</th>
-                    <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Payment</th>
-                    <th className="text-right pr-5 pl-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Days</th>
+        ) : !dividends?.length ? (
+          <p className="px-6 py-10 text-[11px] uppercase tracking-[0.18em] text-warm-dim text-center font-bold">
+            NONE · 90D HORIZON
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] num">
+              <thead>
+                <tr className="border-b border-border bg-white/[0.015]">
+                  <th className="text-left pl-4 pr-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STOCK</th>
+                  <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">EX DATE</th>
+                  <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">LAST BUY</th>
+                  <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">DPS</th>
+                  <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">PAYMENT</th>
+                  <th className="text-right pr-4 pl-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">DAYS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {dividends.map((d, i) => (
+                  <tr key={i} className={cn('hover:bg-white/[0.025] transition-colors', urgencyBar(d.daysUntilEx))}>
+                    <td className="pl-4 pr-3 py-2">
+                      <Link href={`/stock/${d.symbol}`} className="font-bold text-[12px] text-foreground tracking-[0.05em] hover:text-amber transition-colors">
+                        {d.symbol}
+                      </Link>
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-warm-dim truncate max-w-[160px] mt-0.5 font-medium">
+                        {d.stockName}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-foreground uppercase tracking-[0.05em]">
+                      {new Date(d.exDate).toLocaleDateString('en-PK', { weekday: 'short', month: 'short', day: '2-digit' }).toUpperCase()}
+                    </td>
+                    <td className="px-3 py-2 text-warm-muted uppercase tracking-[0.05em]">
+                      {new Date(d.lastBuyDate).toLocaleDateString('en-PK', { month: 'short', day: '2-digit' }).toUpperCase()}
+                    </td>
+                    <td className="text-right px-3 py-2 font-bold text-foreground">Rs.{d.dps}</td>
+                    <td className="text-right px-3 py-2 text-warm-muted uppercase tracking-[0.05em]">
+                      {d.paymentDate
+                        ? new Date(d.paymentDate).toLocaleDateString('en-PK', { month: 'short', day: '2-digit' }).toUpperCase()
+                        : '—'}
+                    </td>
+                    <td className="text-right pr-4 pl-3 py-2">
+                      <span className={cn(
+                        'inline-block text-[9px] font-bold px-2 py-0.5 border uppercase tracking-[0.15em]',
+                        urgencyClass(d.daysUntilEx),
+                      )}>
+                        {d.daysUntilEx === 0 ? 'TODAY' : `${d.daysUntilEx}D`}
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {dividends.map((d, i) => (
-                    <tr
-                      key={i}
-                      className="row-hover border-b border-border/30 hover:bg-primary/[0.04] transition-colors"
-                    >
-                      <td className="pl-5 pr-3 py-3">
-                        <Link
-                          href={`/stock/${d.symbol}`}
-                          className="num font-semibold text-[13px] hover:text-primary transition-colors"
-                        >
-                          {d.symbol}
-                        </Link>
-                        <div className="text-[11px] text-muted-foreground/60 truncate max-w-[140px] leading-tight mt-0.5">
-                          {d.stockName}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="num text-[13px]">
-                          {new Date(d.exDate).toLocaleDateString('en-PK', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="num text-[13px] text-muted-foreground">
-                          {new Date(d.lastBuyDate).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </td>
-                      <td className="text-right px-3 py-3">
-                        <span className="num font-semibold text-[13px]">Rs. {d.dps}</span>
-                      </td>
-                      <td className="text-right px-3 py-3">
-                        <span className="num text-[13px] text-muted-foreground">
-                          {d.paymentDate
-                            ? new Date(d.paymentDate).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })
-                            : '—'}
-                        </span>
-                      </td>
-                      <td className="text-right pr-5 pl-3 py-3">
-                        <span className={cn(
-                          'num text-[11px] font-medium px-2 py-0.5 rounded-sm border',
-                          urgencyClass(d.daysUntilEx),
-                        )}>
-                          {d.daysUntilEx === 0 ? 'Today' : `${d.daysUntilEx}d`}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

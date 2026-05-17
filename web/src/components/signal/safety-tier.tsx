@@ -6,23 +6,28 @@ import type { SafetyTier as SafetyTierType } from '@/lib/api/types';
 interface SafetyTierProps {
   tier: SafetyTierType | null | undefined;
   className?: string;
+  size?: 'sm' | 'md';
 }
 
 const TIER_COLOR: Record<SafetyTierType, string> = {
-  S: 'text-emerald-300 bg-emerald-500/15 border-emerald-500/30',
-  A: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
-  B: 'text-lime-400 bg-lime-500/10 border-lime-500/25',
-  C: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
-  D: 'text-red-400 bg-red-500/10 border-red-500/25',
-  '-': 'text-muted-foreground bg-muted/30 border-border/40',
+  S: 'text-cyan-pos border-[oklch(0.79_0.13_180_/_40%)] bg-[oklch(0.79_0.13_180_/_10%)]',
+  A: 'text-cyan-pos border-[oklch(0.79_0.13_180_/_30%)] bg-[oklch(0.79_0.13_180_/_6%)]',
+  B: 'text-amber border-[oklch(0.78_0.16_75_/_30%)] bg-[oklch(0.78_0.16_75_/_5%)]',
+  C: 'text-amber border-[oklch(0.78_0.16_75_/_45%)] bg-[oklch(0.78_0.16_75_/_10%)]',
+  D: 'text-warn border-[oklch(0.68_0.22_25_/_40%)] bg-[oklch(0.68_0.22_25_/_8%)]',
+  '-': 'text-warm-dim border-border bg-white/[0.02]',
 };
 
-export function SafetyTier({ tier, className }: SafetyTierProps) {
+export function SafetyTier({ tier, className, size = 'md' }: SafetyTierProps) {
   const t = tier ?? '-';
+  const sizeClass = size === 'sm'
+    ? 'w-[14px] h-[14px] text-[9px]'
+    : 'w-[18px] h-[18px] text-[11px]';
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center w-[18px] h-[18px] rounded-sm border text-[11px] font-bold tracking-tight font-mono leading-none',
+        'inline-flex items-center justify-center border font-bold tracking-tight font-mono leading-none num',
+        sizeClass,
         TIER_COLOR[t],
         className,
       )}

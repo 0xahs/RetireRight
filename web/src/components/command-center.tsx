@@ -1,23 +1,15 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useStocks, useMacro, useUpcomingDividends } from '@/lib/api/queries';
-import { formatPct } from '@/lib/utils/format';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useStocks, useUpcomingDividends } from '@/lib/api/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { TrendingUp, TrendingDown, CalendarDays, Clock, ArrowRight } from 'lucide-react';
 import type { StockSummaryDto, Verdict } from '@/lib/api/types';
 import { ASUCard } from '@/components/signal/asu-card';
 import { NothingActionable } from '@/components/signal/nothing-actionable';
 
-/* ── Cockpit picker ──────────────────────────────────────────────────────────
-   Picks at most 3 stocks for the ASU strip:
-     1 ACCUMULATE (highest composite)  · or fallback to WATCH or top HOLD
-     1 REVIEW or AVOID (most urgent)   · or skip if none
-     1 OPPORTUNITY (high opportunity score, climbing)
-   Cap = 3; deduplicate by symbol. */
+/* ── Cockpit picker ──────────────────────────────────────────────────────── */
 
 function pickCockpitStocks(stocks: StockSummaryDto[]): {
   cockpit: StockSummaryDto[];
@@ -26,8 +18,6 @@ function pickCockpitStocks(stocks: StockSummaryDto[]): {
   if (!stocks?.length) return { cockpit: [], hasUrgent: false };
 
   const byVerdict = (v: Verdict) => stocks.filter(s => s.verdict === v);
-
-  // Slot 1: Best ACCUMULATE; fallback to WATCH (climbing); else best HOLD with conviction
   const accumulates = byVerdict('ACCUMULATE').sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0));
   const watches = byVerdict('WATCH').sort((a, b) => (b.opportunityScore ?? 0) - (a.opportunityScore ?? 0));
   const holds = byVerdict('HOLD')
@@ -36,12 +26,10 @@ function pickCockpitStocks(stocks: StockSummaryDto[]): {
 
   const slot1 = accumulates[0] ?? watches[0] ?? holds[0];
 
-  // Slot 2: AVOID first (most urgent), else REVIEW
   const avoids = byVerdict('AVOID').sort((a, b) => (a.compositeScore ?? 0) - (b.compositeScore ?? 0));
   const reviews = byVerdict('REVIEW');
   const slot2 = avoids[0] ?? reviews[0];
 
-  // Slot 3: Highest opportunity score that isn't in slots 1/2
   const picked = new Set([slot1?.symbol, slot2?.symbol].filter(Boolean));
   const slot3 = [...stocks]
     .filter(s => !picked.has(s.symbol))
@@ -53,7 +41,6 @@ function pickCockpitStocks(stocks: StockSummaryDto[]): {
     .slice(0, 3);
 
   const hasUrgent = avoids.length > 0 || reviews.length > 0 || accumulates.length > 0;
-
   return { cockpit, hasUrgent };
 }
 
@@ -61,24 +48,24 @@ function summaryLine(stocks: StockSummaryDto[]): string {
   const counts = { ACCUMULATE: 0, HOLD: 0, REVIEW: 0, AVOID: 0, WATCH: 0 };
   for (const s of stocks) counts[s.verdict] = (counts[s.verdict] ?? 0) + 1;
   const parts: string[] = [];
-  if (counts.ACCUMULATE) parts.push(`${counts.ACCUMULATE} accumulate`);
-  if (counts.REVIEW) parts.push(`${counts.REVIEW} review`);
-  if (counts.AVOID) parts.push(`${counts.AVOID} risk`);
-  if (counts.WATCH) parts.push(`${counts.WATCH} watching`);
-  return parts.length ? `Today: ${parts.join(' · ')}` : `${stocks.length} stocks · all signals stable`;
+  if (counts.ACCUMULATE) parts.push(`${counts.ACCUMULATE} ACC`);
+  if (counts.REVIEW) parts.push(`${counts.REVIEW} REV`);
+  if (counts.AVOID) parts.push(`${counts.AVOID} AVD`);
+  if (counts.WATCH) parts.push(`${counts.WATCH} WCH`);
+  if (counts.HOLD) parts.push(`${counts.HOLD} HLD`);
+  return parts.join(' · ');
 }
 
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export function CommandCenterContent() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeading />
-      <MacroStrip />
       <CockpitStrip />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <PortfolioPulse />
+          <WatchlistPulse />
         </div>
         <UpcomingDividendsWidget />
       </div>
@@ -88,92 +75,35 @@ export function CommandCenterContent() {
 
 function PageHeading() {
   const { data: stocks } = useStocks();
-  const line = stocks ? summaryLine(stocks) : 'Loading signals…';
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const line = stocks ? summaryLine(stocks) : 'LOADING SIGNALS…';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-PK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'GOOD MORNING' : hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold tracking-tight">{greeting}, Ahmad.</h1>
-      <p className="text-muted-foreground text-xs mt-0.5">{line}</p>
-    </div>
-  );
-}
-
-/* ── Macro strip (unchanged from existing implementation) ─────────────────── */
-
-function MacroStrip() {
-  const { data, isLoading } = useMacro();
-
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="border-border/50 card-panel">
-            <CardContent className="p-4"><Skeleton className="h-12 w-full rounded-sm" /></CardContent>
-          </Card>
-        ))}
+    <div className="flex items-baseline justify-between gap-3 flex-wrap">
+      <div>
+        <div className="text-[9px] text-amber font-bold tracking-[0.22em] uppercase mb-1">
+          ┌── {greeting} · AHMAD
+        </div>
+        <h1 className="text-foreground font-bold text-[20px] tracking-tight">
+          PSX INTEL · COCKPIT
+        </h1>
       </div>
-    );
-  }
-
-  if (!data) return null;
-
-  const kseUp = (data.kse100ChangePct ?? 0) >= 0;
-
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      <Card className={cn(
-        'border-border/50 card-panel relative overflow-hidden',
-        kseUp ? 'bg-emerald-500/5' : 'bg-red-500/5',
-      )}>
-        <div className={cn(
-          'absolute top-0 left-0 right-0 h-0.5',
-          kseUp ? 'bg-emerald-500/60' : 'bg-red-500/60',
-        )} />
-        <CardContent className="p-4">
-          <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">KSE-100</div>
-          <div className="num text-2xl font-bold tracking-tight">
-            {data.kse100Level?.toLocaleString('en-PK', { maximumFractionDigits: 0 }) ?? '—'}
-          </div>
-          {data.kse100ChangePct != null && (
-            <div className={cn(
-              'num text-sm flex items-center gap-1 mt-1 font-medium',
-              kseUp ? 'text-emerald-500' : 'text-red-500',
-            )}>
-              {kseUp ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-              {kseUp ? '+' : ''}{formatPct(data.kse100ChangePct)} today
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50 card-panel">
-        <CardContent className="p-4">
-          <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">Policy Rate</div>
-          <div className="num text-2xl font-bold tracking-tight">{formatPct(data.sbpRate)}</div>
-          <div className="num text-sm text-muted-foreground mt-1">
-            PKR/USD: <span className="font-medium text-foreground">{data.pkrUsd?.toFixed(2) ?? '—'}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50 card-panel">
-        <CardContent className="p-4">
-          <div className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest mb-1.5">Brent Crude</div>
-          <div className="num text-2xl font-bold tracking-tight">
-            ${data.brentCrude?.toFixed(2) ?? '—'}
-          </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
-            As of {data.asOf ? new Date(data.asOf).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' }) : '—'}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="text-right">
+        <div className="text-[9px] text-warm-dim font-bold tracking-[0.18em] uppercase num">
+          {dateStr.toUpperCase()}
+        </div>
+        <div className="text-[10px] text-amber font-bold tracking-[0.15em] uppercase mt-1 num">
+          {line}
+        </div>
+      </div>
     </div>
   );
 }
 
-/* ── The Cockpit: 3 ASU cards or NothingActionable ────────────────────────── */
+/* ── COCKPIT ─────────────────────────────────────────────────────────────── */
 
 function CockpitStrip() {
   const { data: stocks, isLoading } = useStocks();
@@ -183,67 +113,62 @@ function CockpitStrip() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[0, 1, 2].map(i => <Skeleton key={i} className="h-56 w-full rounded-sm" />)}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {[0, 1, 2].map(i => <Skeleton key={i} className="h-64 w-full" style={{ borderRadius: 0 }} />)}
       </div>
     );
   }
-
   if (!stocks?.length) return null;
 
-  // "Nothing actionable" criteria: no ACCUMULATE, no REVIEW, no AVOID
-  // (HOLD-only days = doing nothing is correct)
   if (!hasUrgent) {
     const nextEvent = upcoming?.[0]
-      ? `${upcoming[0].symbol} ex-date in ${upcoming[0].daysUntilEx}d`
+      ? `${upcoming[0].symbol} EX-DATE IN ${upcoming[0].daysUntilEx}D`
       : undefined;
     return <NothingActionable trackedCount={stocks.length} nextEventLabel={nextEvent} />;
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {cockpit.map(stock => (
-        <ASUCard key={stock.symbol} stock={stock} />
-      ))}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {cockpit.map(stock => <ASUCard key={stock.symbol} stock={stock} />)}
     </div>
   );
 }
 
-/* ── Portfolio pulse — secondary widget (renamed from Watchlist Snapshot) ── */
+/* ── WATCHLIST PULSE ─────────────────────────────────────────────────────── */
 
-function PortfolioPulse() {
+function WatchlistPulse() {
   const { data: stocks, isLoading } = useStocks();
 
   return (
-    <Card className="border-border/50 card-panel overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Watchlist Pulse</CardTitle>
-          <Link
-            href="/watchlist"
-            className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-1"
-          >
-            View all <ArrowRight className="h-3 w-3" />
-          </Link>
+    <div className="panel">
+      <div className="panel-strip flex items-center justify-between px-4 py-1.5">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">
+          ▌ WATCHLIST · PULSE
+        </span>
+        <Link
+          href="/watchlist"
+          className="text-[9px] uppercase tracking-[0.18em] text-warm-dim hover:text-amber transition-colors font-bold"
+        >
+          [ FULL TABLE ›]
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="p-4 space-y-1.5">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" style={{ borderRadius: 0 }} />)}
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="px-5 py-4 space-y-2.5">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-sm" />)}
-          </div>
-        ) : !stocks?.length ? (
-          <div className="px-5 py-8 text-sm text-muted-foreground text-center">No stocks in watchlist</div>
-        ) : (
-          <PulseList stocks={stocks} />
-        )}
-      </CardContent>
-    </Card>
+      ) : !stocks?.length ? (
+        <div className="px-4 py-10 text-center text-[11px] uppercase tracking-[0.18em] text-warm-dim font-bold">
+          NO STOCKS · ADD VIA WATCHLIST
+        </div>
+      ) : (
+        <PulseList stocks={stocks} />
+      )}
+    </div>
   );
 }
 
 function PulseList({ stocks }: { stocks: StockSummaryDto[] }) {
-  // Show ALL stocks (not just sorted by composite). Group implicit by verdict urgency.
   const ranked = [...stocks].sort((a, b) => {
     const order: Record<Verdict, number> = {
       ACCUMULATE: 0, REVIEW: 1, AVOID: 2, WATCH: 3, HOLD: 4,
@@ -254,10 +179,17 @@ function PulseList({ stocks }: { stocks: StockSummaryDto[] }) {
   });
 
   return (
-    <div className="divide-y divide-border/30">
-      {ranked.map(s => (
-        <PulseRow key={s.symbol} stock={s} />
-      ))}
+    <div className="divide-y divide-border">
+      {/* Header row */}
+      <div className="grid grid-cols-[100px_72px_1fr_72px_72px_56px] items-center px-4 py-1.5 text-[8.5px] uppercase tracking-[0.18em] text-warm-dim font-bold bg-white/[0.015]">
+        <span>SYMBOL</span>
+        <span>VERDICT</span>
+        <span>WHY/RISK</span>
+        <span className="text-right">NET·Y</span>
+        <span className="text-right">CHG</span>
+        <span className="text-right">AGE</span>
+      </div>
+      {ranked.map(s => <PulseRow key={s.symbol} stock={s} />)}
     </div>
   );
 }
@@ -267,123 +199,116 @@ function PulseRow({ stock }: { stock: StockSummaryDto }) {
     ? (Date.now() - new Date(stock.scrapedAt).getTime()) / 3_600_000
     : null;
   const ageText = ageHours == null ? '—' :
-    ageHours < 1 ? '<1h' :
-    ageHours < 48 ? `${Math.round(ageHours)}h` :
-    `${Math.round(ageHours / 24)}d`;
+    ageHours < 1 ? '<1H' :
+    ageHours < 48 ? `${Math.round(ageHours)}H` :
+    `${Math.round(ageHours / 24)}D`;
+  const stale = ageHours != null && ageHours > 24;
 
   const up = (stock.changePct ?? 0) >= 0;
-  const accentColor =
-    stock.verdict === 'ACCUMULATE' ? 'oklch(0.72 0.16 158)' :
-    stock.verdict === 'REVIEW' ? 'oklch(0.78 0.16 80)' :
-    stock.verdict === 'AVOID' ? 'oklch(0.62 0.22 22)' :
-    stock.verdict === 'WATCH' ? 'oklch(0.72 0.14 230)' :
-    'oklch(0.55 0.05 250 / 50%)';
+  const verdictBarClass =
+    stock.verdict === 'ACCUMULATE' ? 'verdict-bar-acc' :
+    stock.verdict === 'REVIEW' ? 'verdict-bar-rev' :
+    stock.verdict === 'AVOID' ? 'verdict-bar-avd' :
+    stock.verdict === 'WATCH' ? 'verdict-bar-wch' :
+    'verdict-bar-hold';
+
+  const verdictTone =
+    stock.verdict === 'ACCUMULATE' ? 'text-cyan-pos' :
+    stock.verdict === 'REVIEW' ? 'text-amber' :
+    stock.verdict === 'AVOID' ? 'text-warn' :
+    stock.verdict === 'WATCH' ? 'text-[oklch(0.72_0.10_230)]' :
+    'text-warm-muted';
 
   return (
     <Link
       href={`/stock/${stock.symbol}`}
-      className="flex items-center gap-3 px-5 py-2.5 hover:bg-primary/[0.04] transition-colors group"
+      className={cn(
+        'grid grid-cols-[100px_72px_1fr_72px_72px_56px] items-center px-4 py-[7px] hover:bg-white/[0.025] transition-colors group num text-[11px]',
+        verdictBarClass,
+      )}
     >
-      <span
-        aria-hidden
-        className="w-[2px] h-7 rounded-full shrink-0"
-        style={{ backgroundColor: accentColor }}
-      />
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="num font-semibold text-[13px] w-14 shrink-0 group-hover:text-primary transition-colors">{stock.symbol}</span>
-        <span className="text-[11px] text-muted-foreground/55 uppercase tracking-wider font-semibold w-[88px] shrink-0">
-          {stock.verdict.toLowerCase()}
-        </span>
-        <span className="text-[10px] text-muted-foreground/45 num truncate hidden sm:inline">
-          {stock.whyLine || stock.risks || '—'}
-        </span>
-      </div>
-      <div className="flex items-center gap-3 shrink-0 num">
-        {stock.netYield != null && (
-          <span className="text-[11px] text-muted-foreground">
-            <span className="font-semibold text-foreground">{stock.netYield.toFixed(1)}%</span>
-            <span className="text-muted-foreground/45 ml-0.5">net</span>
-          </span>
-        )}
-        {stock.changePct != null && (
-          <span className={cn('text-[11px] w-12 text-right', up ? 'text-emerald-500' : 'text-red-500')}>
-            {up ? '+' : ''}{stock.changePct.toFixed(2)}%
-          </span>
-        )}
-        <span className="text-[10px] text-muted-foreground/45 w-8 text-right">{ageText}</span>
-      </div>
+      <span className="font-bold text-foreground tracking-[0.05em] group-hover:text-amber transition-colors">
+        {stock.symbol}
+      </span>
+      <span className={cn('font-bold tracking-[0.15em] uppercase text-[9px]', verdictTone)}>
+        {stock.verdict}
+      </span>
+      <span className="text-warm-muted truncate text-[10px]">
+        {stock.whyLine || stock.risks || '—'}
+      </span>
+      <span className="text-right text-foreground/85 font-semibold">
+        {stock.netYield != null ? `${stock.netYield.toFixed(1)}%` : '—'}
+      </span>
+      <span className={cn('text-right font-semibold', up ? 'text-cyan-pos' : 'text-warn')}>
+        {stock.changePct != null ? `${up ? '▲' : '▼'}${Math.abs(stock.changePct).toFixed(2)}` : '—'}
+      </span>
+      <span className={cn('text-right text-warm-dim font-bold text-[10px] tracking-wider', stale && 'text-amber')}>
+        {ageText}
+      </span>
     </Link>
   );
 }
 
-/* ── Upcoming dividends widget (unchanged behavior) ───────────────────────── */
+/* ── UPCOMING DIVIDENDS ──────────────────────────────────────────────────── */
 
 function UpcomingDividendsWidget() {
   const { data: dividends, isLoading } = useUpcomingDividends(60);
 
   return (
-    <Card className="border-border/50 card-panel overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5 text-primary" />
-            Upcoming Ex-Dates
-          </CardTitle>
-          <Link
-            href="/dividends"
-            className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors flex items-center gap-1"
-          >
-            View all <ArrowRight className="h-3 w-3" />
-          </Link>
+    <div className="panel">
+      <div className="panel-strip flex items-center justify-between px-4 py-1.5">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">
+          ▌ EX-DATES · 60D
+        </span>
+        <Link
+          href="/dividends"
+          className="text-[9px] uppercase tracking-[0.18em] text-warm-dim hover:text-amber transition-colors font-bold"
+        >
+          [ FULL ›]
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="p-3 space-y-1.5">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full" style={{ borderRadius: 0 }} />)}
         </div>
-      </CardHeader>
-      <CardContent className="p-3 space-y-1">
-        {isLoading ? (
-          <div className="space-y-1.5">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full rounded-sm" />)}
-          </div>
-        ) : !dividends?.length ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No upcoming dividends (60 days)</p>
-        ) : (
-          dividends.slice(0, 7).map((d, i) => {
+      ) : !dividends?.length ? (
+        <div className="px-3 py-10 text-center text-[11px] uppercase tracking-[0.18em] text-warm-dim font-bold">
+          NONE · 60D HORIZON
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {dividends.slice(0, 8).map((d, i) => {
             const urgent = d.daysUntilEx <= 3;
             const soon = d.daysUntilEx <= 7;
+            const tone = urgent ? 'text-warn' : soon ? 'text-amber' : 'text-warm-muted';
+            const barClass = urgent ? 'verdict-bar-avd' : soon ? 'verdict-bar-rev' : '';
             return (
-              <div
+              <Link
                 key={i}
+                href={`/stock/${d.symbol}`}
                 className={cn(
-                  'flex items-center justify-between px-3 py-2.5 rounded-sm border transition-colors',
-                  urgent
-                    ? 'bg-red-500/5 border-red-500/15 hover:bg-red-500/10'
-                    : soon
-                    ? 'bg-amber-500/5 border-amber-500/15 hover:bg-amber-500/10'
-                    : 'bg-muted/[0.04] border-border/30 hover:bg-muted/[0.08]',
+                  'flex items-center justify-between px-3 py-2 hover:bg-white/[0.025] transition-colors num',
+                  barClass,
                 )}
               >
                 <div>
-                  <Link href={`/stock/${d.symbol}`} className="num font-semibold text-[13px] hover:text-primary transition-colors cursor-pointer">
-                    {d.symbol}
-                  </Link>
-                  <div className="flex items-center gap-1 num text-[10px] text-muted-foreground/60 mt-0.5">
-                    <Clock className="h-2.5 w-2.5" />
-                    Ex: {new Date(d.exDate).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}
-                    {' · '}{d.daysUntilEx === 0 ? 'today' : `${d.daysUntilEx}d`}
+                  <div className="font-bold text-foreground text-[12px] tracking-[0.05em]">{d.symbol}</div>
+                  <div className="text-[9px] uppercase tracking-[0.15em] text-warm-dim mt-0.5 font-bold">
+                    EX {new Date(d.exDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }).toUpperCase()} · {d.daysUntilEx === 0 ? 'TODAY' : `${d.daysUntilEx}D`}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="num font-semibold text-[13px]">Rs. {d.dps}</div>
-                  <div className={cn(
-                    'num text-[10px] font-medium',
-                    urgent ? 'text-red-400' : soon ? 'text-amber-400' : 'text-muted-foreground/50',
-                  )}>
-                    {urgent ? 'Urgent' : soon ? 'Soon' : `${d.daysUntilEx}d away`}
+                  <div className="font-bold text-foreground text-[12px]">Rs.{d.dps}</div>
+                  <div className={cn('text-[9px] uppercase tracking-[0.15em] font-bold mt-0.5', tone)}>
+                    {urgent ? 'URGENT' : soon ? 'SOON' : `${d.daysUntilEx}D AWAY`}
                   </div>
                 </div>
-              </div>
+              </Link>
             );
-          })
-        )}
-      </CardContent>
-    </Card>
+          })}
+        </div>
+      )}
+    </div>
   );
 }

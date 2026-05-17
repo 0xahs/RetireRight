@@ -4,80 +4,70 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useCompareBasket, COMPARE_MAX } from './compare-basket-context';
-import { X, GitCompare, ArrowRight } from 'lucide-react';
 
 export function CompareStickyBar() {
   const { symbols, remove, clear } = useCompareBasket();
   const pathname = usePathname();
 
-  // Hide the bar when already on the compare page (it'd be redundant)
   if (symbols.length === 0 || pathname === '/compare') return null;
 
   const href = `/compare?syms=${symbols.join(',')}`;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-      <div
-        className={cn(
-          'pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-sm border border-border bg-card/95 backdrop-blur',
-          'shadow-[0_10px_30px_oklch(0_0_0_/_40%)]',
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <GitCompare className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Compare
-          </span>
-          <span className="text-[10px] text-muted-foreground/50 num">
+    <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+      <div className="pointer-events-auto panel-strong flex items-stretch border bg-background relative">
+        <span aria-hidden className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+
+        <span className="px-3 py-2 flex items-center gap-2 border-r border-border bg-card">
+          <span className="text-amber font-bold text-[10px] tracking-[0.2em] uppercase">▌ CMP</span>
+          <span className="text-[9px] text-warm-dim font-bold num tracking-wider">
             {symbols.length}/{COMPARE_MAX}
           </span>
-        </div>
+        </span>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-stretch divide-x divide-border">
           {symbols.map(sym => (
             <span
               key={sym}
-              className="inline-flex items-center gap-1 num font-semibold text-[12px] px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20"
+              className="inline-flex items-center gap-1.5 px-3 num font-bold text-[12px] text-foreground hover:bg-white/[0.025] tracking-[0.05em]"
             >
               {sym}
               <button
                 onClick={() => remove(sym)}
-                className="hover:text-foreground transition-colors cursor-pointer"
+                className="text-warm-dim hover:text-warn transition-colors cursor-pointer text-[10px] leading-none font-bold"
                 aria-label={`Remove ${sym}`}
               >
-                <X className="h-2.5 w-2.5" />
+                ✕
               </button>
             </span>
           ))}
         </div>
 
-        <div className="flex items-center gap-1 border-l border-border/40 pl-3 ml-1">
+        <div className="flex items-stretch border-l border-border">
           {symbols.length >= 2 ? (
             <Link
               href={href}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors px-2.5 py-1 rounded-sm border border-primary/30 hover:bg-primary/5"
+              className="px-3 py-2 inline-flex items-center text-[10px] uppercase tracking-[0.18em] font-bold text-amber hover:bg-primary/10 transition-colors"
             >
-              Open compare <ArrowRight className="h-3 w-3" />
+              [ OPEN COMPARE › ]
             </Link>
           ) : (
-            <span className="text-[10px] text-muted-foreground/45 italic">
-              Add 1+ more to compare
+            <span className="px-3 py-2 inline-flex items-center text-[10px] uppercase tracking-[0.18em] font-bold text-warm-dim">
+              ADD 1+ MORE
             </span>
           )}
           <button
             onClick={clear}
-            className="text-[10px] text-muted-foreground/45 hover:text-muted-foreground transition-colors px-2 py-1 cursor-pointer"
+            className="px-2 py-2 text-[9px] uppercase tracking-[0.18em] font-bold text-warm-dim hover:text-warn transition-colors border-l border-border cursor-pointer"
             aria-label="Clear basket"
           >
-            Clear
+            CLEAR
           </button>
         </div>
       </div>
     </div>
   );
 }
-
-/* ── Compare button — used in stock pages and cards ────────────────────── */
 
 interface CompareButtonProps {
   symbol: string;
@@ -101,18 +91,18 @@ export function CompareButton({ symbol, variant = 'inline', className }: Compare
       <button
         onClick={handle}
         disabled={disabled}
-        title={active ? 'Remove from Compare' : disabled ? 'Compare basket full' : 'Add to Compare'}
+        title={active ? 'In compare basket' : disabled ? 'Basket full' : 'Add to compare'}
         className={cn(
-          'inline-flex items-center justify-center w-6 h-6 rounded-sm border transition-colors cursor-pointer',
+          'inline-flex items-center justify-center w-5 h-5 border transition-colors cursor-pointer text-[10px] font-bold',
           active
-            ? 'border-primary/40 bg-primary/10 text-primary'
+            ? 'border-amber bg-primary/15 text-amber'
             : disabled
-            ? 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
-            : 'border-border/40 text-muted-foreground/60 hover:text-primary hover:border-primary/40',
+            ? 'border-border text-warm-dim cursor-not-allowed'
+            : 'border-border text-warm-muted hover:text-amber hover:border-primary/50',
           className,
         )}
       >
-        <GitCompare className="h-3 w-3" />
+        +
       </button>
     );
   }
@@ -122,17 +112,16 @@ export function CompareButton({ symbol, variant = 'inline', className }: Compare
       onClick={handle}
       disabled={disabled}
       className={cn(
-        'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-sm border transition-colors cursor-pointer',
+        'inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-bold px-2.5 py-1.5 border transition-colors cursor-pointer',
         active
-          ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/15'
+          ? 'border-amber bg-primary/10 text-amber hover:bg-primary/20'
           : disabled
-          ? 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
-          : 'border-border/40 text-muted-foreground hover:text-primary hover:border-primary/40',
+          ? 'border-border text-warm-dim cursor-not-allowed'
+          : 'border-border text-warm-muted hover:text-amber hover:border-primary/50',
         className,
       )}
     >
-      <GitCompare className="h-3 w-3" />
-      {active ? 'In compare' : 'Compare'}
+      {active ? '[ ✓ IN COMPARE ]' : '[ + COMPARE ]'}
     </button>
   );
 }

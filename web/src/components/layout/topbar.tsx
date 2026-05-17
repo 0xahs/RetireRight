@@ -2,8 +2,10 @@
 
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { LogOut, ChevronRight, Search, ChevronDown } from 'lucide-react';
+import { LogOut, Search } from 'lucide-react';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
+import { useMacro } from '@/lib/api/queries';
+import { cn } from '@/lib/utils';
 
 import {
   DropdownMenu,
@@ -16,21 +18,22 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const ROUTE_LABELS: Record<string, string> = {
-  '/dashboard': 'Command Center',
-  '/watchlist': 'Watchlist',
-  '/screener': 'Screener',
-  '/dividends': 'Dividend Calendar',
-  '/portfolio': 'Portfolio',
-  '/pipeline': 'Pipeline Monitor',
-  '/export': 'Export Center',
+  '/dashboard':  'COCKPIT',
+  '/watchlist':  'WATCHLIST',
+  '/screener':   'SCREENER',
+  '/compare':    'COMPARE',
+  '/dividends':  'CALENDAR',
+  '/portfolio':  'PORTFOLIO',
+  '/pipeline':   'PIPELINE',
+  '/export':     'EXPORT',
 };
 
 function usePageTitle(pathname: string): { section: string; page: string } {
   if (pathname.startsWith('/stock/')) {
     const symbol = pathname.split('/')[2]?.toUpperCase() ?? '';
-    return { section: 'Watchlist', page: symbol };
+    return { section: 'WATCHLIST', page: symbol };
   }
-  const label = ROUTE_LABELS[pathname] ?? 'RetireRight';
+  const label = ROUTE_LABELS[pathname] ?? 'RETIRERIGHT';
   return { section: '', page: label };
 }
 
@@ -38,21 +41,36 @@ export function Topbar() {
   const pathname = usePathname();
   const { section, page } = usePageTitle(pathname);
   const { open, setOpen } = useCommandPalette();
+  const { data: macro } = useMacro();
 
   return (
     <>
-      <header className="h-12 shrink-0 flex items-center justify-between px-6 border-b border-border bg-card/50 backdrop-blur-sm">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1.5 text-sm">
-          <span className="text-muted-foreground/60 font-medium text-xs uppercase tracking-wider">RetireRight</span>
+      {/* TICKER STRIP — Bloomberg signature */}
+      <div className="h-7 shrink-0 flex items-center px-3 border-b border-border bg-background overflow-hidden">
+        <span className="text-primary text-[9px] font-bold tracking-[0.18em] mr-3">▌ MARKET</span>
+        <TickerSegment label="KSE-100" value={macro?.kse100Level?.toLocaleString('en-PK', { maximumFractionDigits: 0 })} change={macro?.kse100ChangePct} />
+        <TickerSegment label="SBP" value={fmtPct(macro?.sbpRate)} />
+        <TickerSegment label="PKR/USD" value={macro?.pkrUsd?.toFixed(2)} />
+        <TickerSegment label="BRENT" value={macro?.brentCrude != null ? `$${macro.brentCrude.toFixed(2)}` : '—'} />
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[9px] text-warm-dim tracking-[0.15em]">PKT</span>
+          <Clock />
+        </div>
+      </div>
+
+      {/* MAIN BAR */}
+      <header className="h-10 shrink-0 flex items-center justify-between pl-4 pr-3 border-b border-border bg-card/40">
+        {/* Breadcrumb — bracket markers */}
+        <nav className="flex items-center gap-2 text-[11px]">
+          <span className="text-primary font-bold tracking-[0.05em]">
+            {section ? `${section}` : page}
+          </span>
           {section && (
             <>
-              <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
-              <span className="text-muted-foreground text-xs">{section}</span>
+              <span className="text-warm-dim">›</span>
+              <span className="text-foreground font-semibold tracking-[0.05em]">{page}</span>
             </>
           )}
-          <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
-          <span className="text-foreground font-medium text-xs">{page}</span>
         </nav>
 
         {/* Actions */}
@@ -60,43 +78,42 @@ export function Topbar() {
           {/* Search trigger */}
           <button
             onClick={() => setOpen(true)}
-            className="flex items-center gap-2 h-7 px-3 rounded-sm border border-border/40 bg-muted/[0.05] hover:bg-muted/[0.12] hover:border-border/60 transition-all cursor-pointer group"
+            className="flex items-center gap-2 h-6 px-2 border border-border/60 bg-card hover:border-primary/40 transition-colors cursor-pointer group"
           >
-            <Search className="h-3 w-3 text-muted-foreground/50" />
-            <span className="text-[11px] text-muted-foreground/50 group-hover:text-muted-foreground/70 transition-colors">
-              Search…
+            <Search className="h-2.5 w-2.5 text-warm-dim group-hover:text-primary" />
+            <span className="text-[10px] text-warm-muted group-hover:text-foreground transition-colors tracking-[0.05em] uppercase">
+              Search
             </span>
-            <kbd className="ml-1 text-[9px] text-muted-foreground/35 font-mono border border-border/30 rounded px-1 py-px">
-              Ctrl K
-            </kbd>
+            <span className="text-[9px] text-warm-dim font-bold border border-border/60 px-1 py-px tracking-wider">
+              ⌃K
+            </span>
           </button>
 
+          {/* User dropdown — terminal style */}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 h-7 px-2 rounded-sm hover:bg-muted/[0.12] transition-colors cursor-pointer group bg-transparent border-0 outline-none">
-              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-bold text-primary">A</span>
-              </div>
-              <span className="text-[12px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                Ahmad Sahi
+            <DropdownMenuTrigger className="flex items-center gap-2 h-6 px-2 border border-border/40 bg-card hover:border-primary/40 transition-colors cursor-pointer group outline-none">
+              <span className="text-[9px] text-warm-dim font-bold uppercase tracking-[0.15em]">USR</span>
+              <span className="text-[10px] font-semibold text-foreground/85 group-hover:text-foreground tracking-[0.05em]">
+                AHMAD
               </span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground/50" />
+              <span className="text-[9px] text-warm-dim">▾</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
+            <DropdownMenuContent align="end" className="min-w-48 rounded-none border-border bg-card">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>
                   <div className="flex flex-col gap-0.5 py-0.5">
-                    <span className="text-[13px] font-semibold text-foreground">Ahmad Sahi</span>
-                    <span className="text-[11px] text-muted-foreground">PSX Investor</span>
+                    <span className="text-[12px] font-semibold text-foreground tracking-tight">Ahmad Sahi</span>
+                    <span className="text-[10px] text-warm-muted uppercase tracking-widest">PSX Investor · Filer</span>
                   </div>
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                className="gap-2 cursor-pointer"
+                className="gap-2 cursor-pointer text-[11px] uppercase tracking-wider"
                 onClick={() => signOut({ redirectTo: '/login' })}
               >
-                <LogOut className="h-3.5 w-3.5" />
+                <LogOut className="h-3 w-3" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -107,4 +124,32 @@ export function Topbar() {
       <CommandPalette open={open} onOpenChange={setOpen} />
     </>
   );
+}
+
+function TickerSegment({ label, value, change }: { label: string; value: string | undefined | null; change?: number | null }) {
+  const up = change != null && change >= 0;
+  const down = change != null && change < 0;
+  return (
+    <span className="inline-flex items-baseline gap-1.5 mr-4 num text-[10px]">
+      <span className="text-warm-dim font-bold tracking-[0.12em] uppercase">{label}</span>
+      <span className="text-foreground font-semibold">{value ?? '—'}</span>
+      {change != null && (
+        <span className={cn('text-[10px] font-semibold', up && 'text-cyan-pos', down && 'text-warn')}>
+          {up ? '▲' : '▼'}{Math.abs(change).toFixed(2)}%
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Clock() {
+  // Simple client clock — re-renders every minute
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return <span className="text-[10px] text-foreground/80 font-semibold tabular-nums tracking-wider">{time}</span>;
+}
+
+function fmtPct(v: number | null | undefined): string {
+  if (v == null) return '—';
+  return `${v.toFixed(1)}%`;
 }

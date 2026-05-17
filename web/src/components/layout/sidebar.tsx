@@ -3,100 +3,100 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard,
-  List,
-  Filter,
-  CalendarDays,
-  Briefcase,
-  Activity,
-  TrendingUp,
-  FileJson,
-  GitCompare,
-} from 'lucide-react';
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Command Center', icon: LayoutDashboard },
-  { href: '/watchlist',  label: 'Watchlist',      icon: List },
-  { href: '/screener',   label: 'Screener',        icon: Filter },
-  { href: '/compare',    label: 'Compare',         icon: GitCompare },
-  { href: '/dividends',  label: 'Dividends',       icon: CalendarDays },
-  { href: '/portfolio',  label: 'Portfolio',        icon: Briefcase },
-  { href: '/pipeline',   label: 'Pipeline',         icon: Activity },
-  { href: '/export',     label: 'Export Center',    icon: FileJson },
+  { code: '01', href: '/dashboard',  label: 'Cockpit',     group: 'signal' },
+  { code: '02', href: '/watchlist',  label: 'Watchlist',   group: 'signal' },
+  { code: '03', href: '/screener',   label: 'Screener',    group: 'signal' },
+  { code: '04', href: '/compare',    label: 'Compare',     group: 'signal' },
+  { code: '05', href: '/dividends',  label: 'Calendar',    group: 'data'   },
+  { code: '06', href: '/portfolio',  label: 'Portfolio',   group: 'data'   },
+  { code: '07', href: '/pipeline',   label: 'Pipeline',    group: 'admin'  },
+  { code: '08', href: '/export',     label: 'Export',      group: 'admin'  },
 ];
+
+const GROUP_LABELS: Record<string, string> = {
+  signal: 'SIGNAL',
+  data:   'DATA',
+  admin:  'INFRA',
+};
 
 export function Sidebar() {
   const pathname = usePathname();
+  const grouped = NAV_ITEMS.reduce<Record<string, typeof NAV_ITEMS>>((acc, item) => {
+    (acc[item.group] ??= []).push(item);
+    return acc;
+  }, {});
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col border-r border-border bg-sidebar">
+    <aside className="w-52 shrink-0 flex flex-col border-r border-border bg-sidebar relative">
+      {/* Top accent line — terminal signature */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-primary opacity-60" />
+
       {/* Brand */}
-      <div className="h-12 flex items-center gap-3 px-4 border-b border-border/60 shrink-0">
-        <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center shrink-0 shadow-sm">
-          <TrendingUp className="h-3.5 w-3.5 text-primary-foreground" />
+      <div className="h-11 flex items-center px-3 border-b border-border shrink-0">
+        <div className="flex items-baseline gap-2">
+          <span className="text-primary font-bold text-[13px] tracking-tight">RR</span>
+          <span className="text-foreground/55 text-[10px] uppercase tracking-[0.18em] font-medium">
+            Terminal
+          </span>
         </div>
-        <div className="min-w-0">
-          <div className="font-semibold text-sm tracking-tight leading-tight text-sidebar-foreground">RetireRight</div>
-          <div className="text-[10px] text-muted-foreground leading-tight">PSX Dividend Intel</div>
+        <div className="ml-auto flex items-center gap-1">
+          <span className="block w-1.5 h-1.5 rounded-full bg-verdict-acc" style={{ background: 'var(--verdict-acc)' }} />
+          <span className="text-[9px] text-warm-muted">LIVE</span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        <div className="px-3 pb-2">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Analytics</span>
-        </div>
-        {NAV_ITEMS.slice(0, 4).map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
-          return (
-            <NavLink key={href} href={href} label={label} icon={Icon} active={active} />
-          );
-        })}
-
-        <div className="px-3 py-2 mt-2">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Management</span>
-        </div>
-        {NAV_ITEMS.slice(4).map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
-          return (
-            <NavLink key={href} href={href} label={label} icon={Icon} active={active} />
-          );
-        })}
+      <nav className="flex-1 py-3 overflow-y-auto">
+        {Object.entries(grouped).map(([group, items], gIdx) => (
+          <div key={group} className={cn(gIdx > 0 && 'mt-4')}>
+            <div className="px-3 pb-1.5">
+              <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-warm-dim">
+                ─── {GROUP_LABELS[group]}
+              </span>
+            </div>
+            {items.map(({ code, href, label }) => {
+              const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
+              return <NavLink key={href} code={code} href={href} label={label} active={active} />;
+            })}
+          </div>
+        ))}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-border/60 px-4 py-3 shrink-0">
-        <div className="text-[9px] text-muted-foreground/40 text-center font-medium tracking-widest uppercase">
-          KSE-100 · PSX
-        </div>
+      {/* Footer status */}
+      <div className="border-t border-border px-3 py-2 shrink-0 flex items-center justify-between text-[9px]">
+        <span className="text-warm-dim font-medium">KSE-100 · PSX</span>
+        <span className="text-primary tracking-widest">v0.3</span>
       </div>
     </aside>
   );
 }
 
-function NavLink({
-  href, label, icon: Icon, active,
-}: {
-  href: string; label: string; icon: React.ElementType; active: boolean;
-}) {
+function NavLink({ code, href, label, active }: { code: string; href: string; label: string; active: boolean }) {
   return (
     <Link
       href={href}
       className={cn(
-        'group flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all duration-150 cursor-pointer',
+        'group flex items-center px-3 py-[5px] text-[12px] transition-colors cursor-pointer',
         active
-          ? 'bg-primary/12 text-primary font-medium'
-          : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
+          ? 'bg-primary/[0.08] text-primary'
+          : 'text-foreground/70 hover:text-foreground hover:bg-white/[0.025]',
       )}
     >
-      <Icon className={cn(
-        'h-3.5 w-3.5 shrink-0 transition-colors',
-        active ? 'text-primary' : 'text-muted-foreground/60 group-hover:text-sidebar-foreground',
-      )} />
-      <span className="text-[13px]">{label}</span>
+      <span
+        className={cn(
+          'font-bold w-7 shrink-0 text-[10px] tabular-nums tracking-[0.05em]',
+          active ? 'text-primary' : 'text-warm-dim',
+        )}
+      >
+        {code}
+      </span>
+      <span className={cn('uppercase tracking-[0.05em] font-medium', active && 'font-semibold')}>
+        {label}
+      </span>
       {active && (
-        <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
+        <span className="ml-auto text-primary text-[10px]">▶</span>
       )}
     </Link>
   );
