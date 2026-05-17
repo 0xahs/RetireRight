@@ -8,6 +8,7 @@ import Link from 'next/link';
 import type { StockSummaryDto, Verdict } from '@/lib/api/types';
 import { ASUCard } from '@/components/signal/asu-card';
 import { NothingActionable } from '@/components/signal/nothing-actionable';
+import { yieldTone, changeTone, changeMarker } from '@/lib/utils/format';
 
 /* ── Cockpit picker ──────────────────────────────────────────────────────── */
 
@@ -181,10 +182,10 @@ function PulseList({ stocks }: { stocks: StockSummaryDto[] }) {
   return (
     <div className="divide-y divide-border">
       {/* Header row */}
-      <div className="grid grid-cols-[100px_72px_1fr_72px_72px_56px] items-center px-4 py-1.5 text-[8.5px] uppercase tracking-[0.18em] text-warm-dim font-bold bg-white/[0.015]">
+      <div className="grid grid-cols-[110px_72px_1fr_72px_72px_56px] items-center px-4 py-1.5 text-[8.5px] uppercase tracking-[0.18em] text-warm-dim font-bold bg-white/[0.015]">
         <span>SYMBOL</span>
         <span>VERDICT</span>
-        <span>WHY/RISK</span>
+        <span>WHY · RISK</span>
         <span className="text-right">NET·Y</span>
         <span className="text-right">CHG</span>
         <span className="text-right">AGE</span>
@@ -204,13 +205,19 @@ function PulseRow({ stock }: { stock: StockSummaryDto }) {
     `${Math.round(ageHours / 24)}D`;
   const stale = ageHours != null && ageHours > 24;
 
-  const up = (stock.changePct ?? 0) >= 0;
   const verdictBarClass =
     stock.verdict === 'ACCUMULATE' ? 'verdict-bar-acc' :
     stock.verdict === 'REVIEW' ? 'verdict-bar-rev' :
     stock.verdict === 'AVOID' ? 'verdict-bar-avd' :
     stock.verdict === 'WATCH' ? 'verdict-bar-wch' :
     'verdict-bar-hold';
+
+  const verdictDotColor =
+    stock.verdict === 'ACCUMULATE' ? 'bg-[oklch(0.79_0.13_180)]' :
+    stock.verdict === 'REVIEW' ? 'bg-[oklch(0.78_0.16_75)]' :
+    stock.verdict === 'AVOID' ? 'bg-[oklch(0.68_0.22_25)]' :
+    stock.verdict === 'WATCH' ? 'bg-[oklch(0.72_0.10_230)]' :
+    'bg-[oklch(0.55_0.015_80)]';
 
   const verdictTone =
     stock.verdict === 'ACCUMULATE' ? 'text-cyan-pos' :
@@ -219,30 +226,35 @@ function PulseRow({ stock }: { stock: StockSummaryDto }) {
     stock.verdict === 'WATCH' ? 'text-[oklch(0.72_0.10_230)]' :
     'text-warm-muted';
 
+  const whyText = stock.whyLine
+    ? <span className="text-foreground/80">{stock.whyLine}</span>
+    : stock.risks
+    ? <span className="text-warn/85">{stock.risks}</span>
+    : <span className="text-warm-dim">—</span>;
+
   return (
     <Link
       href={`/stock/${stock.symbol}`}
       className={cn(
-        'grid grid-cols-[100px_72px_1fr_72px_72px_56px] items-center px-4 py-[7px] hover:bg-white/[0.025] transition-colors group num text-[11px]',
+        'grid grid-cols-[110px_72px_1fr_72px_72px_56px] items-center px-4 py-[7px] hover:bg-amber-500/[0.04] transition-colors group num text-[11px]',
         verdictBarClass,
       )}
     >
-      <span className="font-bold text-foreground tracking-[0.05em] group-hover:text-amber transition-colors">
+      <span className="font-bold text-foreground tracking-[0.05em] group-hover:text-amber transition-colors flex items-center gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', verdictDotColor)} />
         {stock.symbol}
       </span>
       <span className={cn('font-bold tracking-[0.15em] uppercase text-[9px]', verdictTone)}>
         {stock.verdict}
       </span>
-      <span className="text-warm-muted truncate text-[10px]">
-        {stock.whyLine || stock.risks || '—'}
-      </span>
-      <span className="text-right text-foreground/85 font-semibold">
+      <span className="truncate text-[10px]">{whyText}</span>
+      <span className={cn('text-right font-bold', yieldTone(stock.netYield))}>
         {stock.netYield != null ? `${stock.netYield.toFixed(1)}%` : '—'}
       </span>
-      <span className={cn('text-right font-semibold', up ? 'text-cyan-pos' : 'text-warn')}>
-        {stock.changePct != null ? `${up ? '▲' : '▼'}${Math.abs(stock.changePct).toFixed(2)}` : '—'}
+      <span className={cn('text-right font-bold', changeTone(stock.changePct))}>
+        {stock.changePct != null ? `${changeMarker(stock.changePct)} ${Math.abs(stock.changePct).toFixed(2)}` : '—'}
       </span>
-      <span className={cn('text-right text-warm-dim font-bold text-[10px] tracking-wider', stale && 'text-amber')}>
+      <span className={cn('text-right font-bold text-[10px] tracking-wider', stale ? 'text-warn' : 'text-warm-dim')}>
         {ageText}
       </span>
     </Link>
@@ -282,26 +294,34 @@ function UpcomingDividendsWidget() {
             const urgent = d.daysUntilEx <= 3;
             const soon = d.daysUntilEx <= 7;
             const tone = urgent ? 'text-warn' : soon ? 'text-amber' : 'text-warm-muted';
-            const barClass = urgent ? 'verdict-bar-avd' : soon ? 'verdict-bar-rev' : '';
+            const barClass = urgent ? 'verdict-bar-avd' : soon ? 'verdict-bar-rev' : 'row-hover';
+            const dotColor = urgent
+              ? 'bg-[oklch(0.68_0.22_25)]'
+              : soon
+              ? 'bg-[oklch(0.78_0.16_75)]'
+              : 'bg-[oklch(0.55_0.015_80)]';
             return (
               <Link
                 key={i}
                 href={`/stock/${d.symbol}`}
                 className={cn(
-                  'flex items-center justify-between px-3 py-2 hover:bg-white/[0.025] transition-colors num',
+                  'flex items-center justify-between px-3 py-2 hover:bg-amber-500/[0.04] transition-colors num',
                   barClass,
                 )}
               >
-                <div>
-                  <div className="font-bold text-foreground text-[12px] tracking-[0.05em]">{d.symbol}</div>
-                  <div className="text-[9px] uppercase tracking-[0.15em] text-warm-dim mt-0.5 font-bold">
-                    EX {new Date(d.exDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }).toUpperCase()} · {d.daysUntilEx === 0 ? 'TODAY' : `${d.daysUntilEx}D`}
+                <div className="flex items-center gap-2">
+                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', dotColor)} />
+                  <div>
+                    <div className="font-bold text-foreground text-[12px] tracking-[0.05em]">{d.symbol}</div>
+                    <div className="text-[9px] uppercase tracking-[0.15em] text-warm-dim mt-0.5 font-bold">
+                      EX {new Date(d.exDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }).toUpperCase()} · {d.daysUntilEx === 0 ? 'TODAY' : `${d.daysUntilEx}D`}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="font-bold text-foreground text-[12px]">Rs.{d.dps}</div>
                   <div className={cn('text-[9px] uppercase tracking-[0.15em] font-bold mt-0.5', tone)}>
-                    {urgent ? 'URGENT' : soon ? 'SOON' : `${d.daysUntilEx}D AWAY`}
+                    {urgent ? '⚠ URGENT' : soon ? '◐ SOON' : `${d.daysUntilEx}D AWAY`}
                   </div>
                 </div>
               </Link>

@@ -8,7 +8,7 @@ import { api } from '@/lib/api/client';
 import type { StockDetailDto } from '@/lib/api/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { formatRs, formatPct } from '@/lib/utils/format';
+import { formatRs, changeTone, changeMarker } from '@/lib/utils/format';
 import { VerdictBadge } from '@/components/signal/verdict-badge';
 import { ConvictionDots } from '@/components/signal/conviction-dots';
 import { SafetyTier } from '@/components/signal/safety-tier';
@@ -187,11 +187,8 @@ function CompareTable({ details }: { details: StockDetailDto[] }) {
                   {formatRs(d.summary.price)}
                 </span>
                 {d.summary.changePct != null && (
-                  <span className={cn(
-                    'num text-[11px] font-bold tracking-tight',
-                    d.summary.changePct >= 0 ? 'text-cyan-pos' : 'text-warn',
-                  )}>
-                    {d.summary.changePct >= 0 ? '▲' : '▼'}{Math.abs(d.summary.changePct).toFixed(2)}%
+                  <span className={cn('num text-[11px] font-bold tracking-tight', changeTone(d.summary.changePct))}>
+                    {changeMarker(d.summary.changePct)} {Math.abs(d.summary.changePct).toFixed(2)}%
                   </span>
                 )}
               </div>

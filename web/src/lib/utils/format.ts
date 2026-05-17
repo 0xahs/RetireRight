@@ -58,6 +58,44 @@ export function scoreColor(score: number | null | undefined): string {
   return 'text-red-500';
 }
 
+/** Bloomberg-style tone for any 0–100 score */
+export function scoreTone(score: number | null | undefined): string {
+  if (score == null) return 'text-warm-dim';
+  if (score >= 70) return 'text-cyan-pos';
+  if (score >= 50) return 'text-amber';
+  return 'text-warn';
+}
+
+/** Tone for a yield (higher = better, but flag obvious traps) */
+export function yieldTone(y: number | null | undefined): string {
+  if (y == null) return 'text-warm-dim';
+  if (y >= 15) return 'text-warn';        // yield trap territory
+  if (y >= 7)  return 'text-cyan-pos';
+  if (y >= 4)  return 'text-amber';
+  return 'text-warm-muted';
+}
+
+/** Tone for dividend coverage (higher = safer) */
+export function coverageTone(cov: number | null | undefined): string {
+  if (cov == null) return 'text-warm-dim';
+  if (cov >= 2)   return 'text-cyan-pos';
+  if (cov >= 1.5) return 'text-amber';
+  if (cov >= 1)   return 'text-warm-muted';
+  return 'text-warn';
+}
+
+/** Tone for any change-percent (up/down) */
+export function changeTone(pct: number | null | undefined): string {
+  if (pct == null) return 'text-warm-dim';
+  return pct >= 0 ? 'text-cyan-pos' : 'text-warn';
+}
+
+/** Triangle marker for change-percent */
+export function changeMarker(pct: number | null | undefined): string {
+  if (pct == null) return '·';
+  return pct >= 0 ? '▲' : '▼';
+}
+
 export function formatDateOnly(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('en-PK', {

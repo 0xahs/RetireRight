@@ -5,7 +5,7 @@ import { useStock } from '@/lib/api/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { formatRs, formatPct, formatScore } from '@/lib/utils/format';
+import { formatRs, formatPct, formatScore, changeTone, changeMarker } from '@/lib/utils/format';
 import { FlagBadge } from '@/components/stock-ui';
 import { StockLogo } from '@/components/stock-logo';
 import { PriceChart } from '@/components/price-chart';
@@ -38,7 +38,6 @@ export default function StockPage() {
 
   const { summary, metrics, recentDividends } = data;
   const hasBanking = metrics.banking != null;
-  const up = (summary.changePct ?? 0) >= 0;
 
   return (
     <div className="space-y-4">
@@ -71,9 +70,9 @@ export default function StockPage() {
             {summary.changePct != null && (
               <div className={cn(
                 'num text-[12px] mt-1.5 font-bold tracking-tight',
-                up ? 'text-cyan-pos' : 'text-warn',
+                changeTone(summary.changePct),
               )}>
-                {up ? '▲' : '▼'} {Math.abs(summary.changePct).toFixed(2)}% TODAY
+                {changeMarker(summary.changePct)} {Math.abs(summary.changePct).toFixed(2)}% TODAY
               </div>
             )}
             <div className="mt-2.5">

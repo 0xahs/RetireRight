@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useStocks } from '@/lib/api/queries';
-import { formatRs, formatPct } from '@/lib/utils/format';
+import { formatRs, formatPct, scoreTone, yieldTone, coverageTone, changeTone, changeMarker } from '@/lib/utils/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -144,18 +144,26 @@ function WatchRow({ stock: s }: { stock: StockSummaryDto }) {
     s.verdict === 'WATCH' ? 'verdict-bar-wch' :
     'verdict-bar-hold';
 
-  const up = (s.changePct ?? 0) >= 0;
+  const verdictDotColor =
+    s.verdict === 'ACCUMULATE' ? 'bg-[oklch(0.79_0.13_180)]' :
+    s.verdict === 'REVIEW' ? 'bg-[oklch(0.78_0.16_75)]' :
+    s.verdict === 'AVOID' ? 'bg-[oklch(0.68_0.22_25)]' :
+    s.verdict === 'WATCH' ? 'bg-[oklch(0.72_0.10_230)]' :
+    'bg-[oklch(0.55_0.015_80)]';
 
   return (
-    <tr className={cn('hover:bg-white/[0.02] transition-colors cursor-pointer', verdictBar)}>
+    <tr className={cn('group hover:bg-amber-500/[0.04] transition-colors cursor-pointer', verdictBar)}>
       <td className="pl-4 pr-3 py-2">
-        <Link href={`/stock/${s.symbol}`} className="flex items-center gap-2.5 group">
+        <Link href={`/stock/${s.symbol}`} className="flex items-center gap-2.5">
           <StockLogo symbol={s.symbol} size={24} />
           <div>
-            <div className="font-bold text-[12px] text-foreground tracking-[0.05em] group-hover:text-amber transition-colors">
-              {s.symbol}
+            <div className="flex items-center gap-1.5">
+              <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', verdictDotColor)} />
+              <span className="font-bold text-[12px] text-foreground tracking-[0.05em] group-hover:text-amber transition-colors">
+                {s.symbol}
+              </span>
             </div>
-            <div className="text-[9px] text-warm-dim uppercase tracking-[0.12em] truncate max-w-[120px] font-medium">
+            <div className="text-[9px] text-warm-dim uppercase tracking-[0.12em] truncate max-w-[120px] font-medium mt-0.5">
               {s.sector}
             </div>
           </div>
@@ -173,17 +181,25 @@ function WatchRow({ stock: s }: { stock: StockSummaryDto }) {
       <td className="text-right px-3 py-2 whitespace-nowrap">
         <div className="font-bold text-[12px] text-foreground">{formatRs(s.price)}</div>
         {s.changePct != null && (
-          <div className={cn('text-[10px] font-bold mt-0.5', up ? 'text-cyan-pos' : 'text-warn')}>
-            {up ? '▲' : '▼'}{Math.abs(s.changePct).toFixed(2)}%
+          <div className={cn('text-[10px] font-bold mt-0.5 tracking-tight', changeTone(s.changePct))}>
+            {changeMarker(s.changePct)} {Math.abs(s.changePct).toFixed(2)}%
           </div>
         )}
       </td>
-      <td className="text-right px-3 py-2 font-bold text-foreground">{formatPct(s.netYield)}</td>
-      <td className="text-right px-3 py-2 text-warm-muted">{s.dividendCoverage != null ? `${s.dividendCoverage.toFixed(2)}X` : '—'}</td>
-      <td className="text-right px-3 py-2 font-bold text-foreground">{s.compositeScore != null ? Math.round(s.compositeScore) : '—'}</td>
-      <td className="text-right px-3 py-2 text-warm-muted">{s.opportunityScore != null ? Math.round(s.opportunityScore) : '—'}</td>
-      <td className="px-3 py-2 text-[10px] text-warm-muted truncate max-w-[260px]">
-        {s.whyLine || s.risks || '—'}
+      <td className={cn('text-right px-3 py-2 font-bold', yieldTone(s.netYield))}>{formatPct(s.netYield)}</td>
+      <td className={cn('text-right px-3 py-2 font-bold', coverageTone(s.dividendCoverage))}>
+        {s.dividendCoverage != null ? `${s.dividendCoverage.toFixed(2)}X` : '—'}
+      </td>
+      <td className={cn('text-right px-3 py-2 font-bold', scoreTone(s.compositeScore))}>{s.compositeScore != null ? Math.round(s.compositeScore) : '—'}</td>
+      <td className={cn('text-right px-3 py-2 font-bold', scoreTone(s.opportunityScore))}>{s.opportunityScore != null ? Math.round(s.opportunityScore) : '—'}</td>
+      <td className="px-3 py-2 text-[10px] truncate max-w-[260px]">
+        {s.whyLine ? (
+          <span className="text-foreground/80">{s.whyLine}</span>
+        ) : s.risks ? (
+          <span className="text-warn/90">{s.risks}</span>
+        ) : (
+          <span className="text-warm-dim">—</span>
+        )}
       </td>
       <td className="px-3 py-2 text-right">
         <CompareButton symbol={s.symbol} variant="icon" />

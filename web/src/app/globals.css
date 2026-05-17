@@ -280,27 +280,27 @@
 
   /* Active row left-bar — replaces row-hover from previous design */
   .row-hover {
-    box-shadow: inset 2px 0 0 transparent;
+    box-shadow: inset 3px 0 0 transparent;
     transition: box-shadow 120ms ease, background-color 120ms ease;
   }
   .row-hover:hover {
-    box-shadow: inset 2px 0 0 var(--primary);
-    background-color: oklch(1 0 0 / 2.5%);
+    box-shadow: inset 3px 0 0 var(--primary);
+    background-color: oklch(0.78 0.16 75 / 5%);
   }
 
-  /* Verdict-tinted left bar — used in lists */
-  .verdict-bar-acc { box-shadow: inset 2px 0 0 var(--verdict-acc); }
-  .verdict-bar-hold { box-shadow: inset 2px 0 0 var(--verdict-hold); }
-  .verdict-bar-rev { box-shadow: inset 2px 0 0 var(--verdict-rev); }
-  .verdict-bar-avd { box-shadow: inset 2px 0 0 var(--verdict-avd); }
-  .verdict-bar-wch { box-shadow: inset 2px 0 0 var(--verdict-wch); }
+  /* Verdict-tinted left bar — fattened to 3px for visibility */
+  .verdict-bar-acc  { box-shadow: inset 3px 0 0 var(--verdict-acc); }
+  .verdict-bar-hold { box-shadow: inset 3px 0 0 var(--verdict-hold); }
+  .verdict-bar-rev  { box-shadow: inset 3px 0 0 var(--verdict-rev); }
+  .verdict-bar-avd  { box-shadow: inset 3px 0 0 var(--verdict-avd); }
+  .verdict-bar-wch  { box-shadow: inset 3px 0 0 var(--verdict-wch); }
 
   /* Color tokens directly accessible as classes */
   .text-amber       { color: var(--primary); }
   .text-cyan-pos    { color: var(--verdict-acc); }
   .text-warn        { color: var(--destructive); }
-  .text-warm-muted  { color: oklch(0.62 0.015 80); }
-  .text-warm-dim    { color: oklch(0.45 0.015 80); }
+  .text-warm-muted  { color: oklch(0.68 0.015 80); }
+  .text-warm-dim    { color: oklch(0.52 0.015 80); }
 
   /* Subtle scanline (off by default — opt in with class) */
   .scanlines {

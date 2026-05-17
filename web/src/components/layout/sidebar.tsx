@@ -50,11 +50,13 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-3 overflow-y-auto">
         {Object.entries(grouped).map(([group, items], gIdx) => (
-          <div key={group} className={cn(gIdx > 0 && 'mt-4')}>
-            <div className="px-3 pb-1.5">
-              <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-warm-dim">
-                ─── {GROUP_LABELS[group]}
+          <div key={group} className={cn(gIdx > 0 && 'mt-3')}>
+            <div className="px-3 pb-1.5 flex items-center gap-1.5">
+              <span className="h-px w-3 bg-primary/40" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-amber">
+                {GROUP_LABELS[group]}
               </span>
+              <span className="h-px flex-1 bg-border" />
             </div>
             {items.map(({ code, href, label }) => {
               const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
