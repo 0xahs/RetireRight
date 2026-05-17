@@ -5,7 +5,7 @@ import { useStock } from '@/lib/api/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { formatRs, formatPct, formatScore, changeTone, changeMarker } from '@/lib/utils/format';
+import { formatRs, formatPct, formatScore, changeTone, changeMarker, scoreTone, yieldTone, coverageTone } from '@/lib/utils/format';
 import { FlagBadge } from '@/components/stock-ui';
 import { StockLogo } from '@/components/stock-logo';
 import { PriceChart } from '@/components/price-chart';
@@ -116,25 +116,25 @@ export default function StockPage() {
         <TabsContent value="overview" className="mt-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <MetricGroup title="DIVIDEND SAFETY" metrics={[
-              ['EARNINGS PAYOUT',       formatPct(metrics.dividendSafety.earningsPayoutRatio)],
-              ['DIVIDEND COVERAGE',     `${metrics.dividendSafety.dividendCoverage?.toFixed(2) ?? '—'}X`],
-              ['DEBT / EQUITY',         `${metrics.dividendSafety.debtToEquity?.toFixed(2) ?? '—'}X`],
-              ['INTEREST COVERAGE',     `${metrics.dividendSafety.interestCoverage?.toFixed(1) ?? '—'}X`],
-              ['CONSECUTIVE DIV YEARS', `${metrics.dividendSafety.consecutiveDivYears ?? '—'}`],
+              { label: 'EARNINGS PAYOUT',       value: metrics.dividendSafety.earningsPayoutRatio != null ? `${(metrics.dividendSafety.earningsPayoutRatio * 100).toFixed(1)}%` : '—', tone: payoutTone(metrics.dividendSafety.earningsPayoutRatio) },
+              { label: 'DIVIDEND COVERAGE',     value: fmtX(metrics.dividendSafety.dividendCoverage), tone: coverageTone(metrics.dividendSafety.dividendCoverage) },
+              { label: 'DEBT / EQUITY',         value: fmtX(metrics.dividendSafety.debtToEquity), tone: debtToEquityTone(metrics.dividendSafety.debtToEquity) },
+              { label: 'INTEREST COVERAGE',     value: fmtX(metrics.dividendSafety.interestCoverage, 1), tone: coverageTone(metrics.dividendSafety.interestCoverage) },
+              { label: 'CONSECUTIVE DIV YEARS', value: `${metrics.dividendSafety.consecutiveDivYears ?? '—'}`, tone: yearsTone(metrics.dividendSafety.consecutiveDivYears) },
             ]} />
             <MetricGroup title="VALUATION" metrics={[
-              ['P/E RATIO',         `${metrics.valuation.peRatio?.toFixed(1) ?? '—'}X`],
-              ['P/B RATIO',         `${metrics.valuation.pbRatio?.toFixed(2) ?? '—'}X`],
-              ['DIVIDEND YIELD',    formatPct(metrics.valuation.dividendYield)],
-              ['EARNINGS YIELD',    formatPct(metrics.valuation.earningsYield)],
-              ['MARGIN OF SAFETY',  formatPct(metrics.valuation.marginOfSafety)],
+              { label: 'P/E RATIO',         value: fmtX(metrics.valuation.peRatio, 1), tone: peTone(metrics.valuation.peRatio) },
+              { label: 'P/B RATIO',         value: fmtX(metrics.valuation.pbRatio), tone: pbTone(metrics.valuation.pbRatio) },
+              { label: 'DIVIDEND YIELD',    value: formatPct(metrics.valuation.dividendYield), tone: yieldTone(metrics.valuation.dividendYield) },
+              { label: 'EARNINGS YIELD',    value: formatPct(metrics.valuation.earningsYield), tone: yieldTone(metrics.valuation.earningsYield) },
+              { label: 'MARGIN OF SAFETY',  value: formatPct(metrics.valuation.marginOfSafety), tone: mosTone(metrics.valuation.marginOfSafety) },
             ]} />
             <MetricGroup title="RISK" metrics={[
-              ['BETA',              `${metrics.risk.beta?.toFixed(2) ?? '—'}`],
-              ['RSI (14)',          `${metrics.risk.rsi14?.toFixed(1) ?? '—'}`],
-              ['VOLATILITY 30D',    formatPct(metrics.risk.volatility30d)],
-              ['52W RANGE POS.',    formatPct(metrics.risk.rangePosition52w)],
-              ['DRAWDOWN 52W',      formatPct(metrics.risk.drawdownFrom52wHigh)],
+              { label: 'BETA',              value: `${metrics.risk.beta?.toFixed(2) ?? '—'}` },
+              { label: 'RSI (14)',          value: `${metrics.risk.rsi14?.toFixed(1) ?? '—'}`, tone: rsiTone(metrics.risk.rsi14) },
+              { label: 'VOLATILITY 30D',    value: formatPct(metrics.risk.volatility30d) },
+              { label: '52W RANGE POS.',    value: formatPct(metrics.risk.rangePosition52w) },
+              { label: 'DRAWDOWN 52W',      value: formatPct(metrics.risk.drawdownFrom52wHigh), tone: drawdownTone(metrics.risk.drawdownFrom52wHigh) },
             ]} />
           </div>
         </TabsContent>
@@ -188,17 +188,17 @@ export default function StockPage() {
         <TabsContent value="fundamentals" className="mt-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <MetricGroup title="DIVIDEND GROWTH" metrics={[
-              ['DPS CURRENT',         formatRs(metrics.dividendGrowth.dividendPerShare)],
-              ['CAGR 3Y',             formatPct(metrics.dividendGrowth.dividendCagr3y)],
-              ['CAGR 5Y',             formatPct(metrics.dividendGrowth.dividendCagr5y)],
-              ['EARNINGS CAGR 3Y',    formatPct(metrics.dividendGrowth.earningsCagr3y)],
-              ['GROWTH CONSISTENCY',  formatScore(metrics.dividendGrowth.growthConsistency)],
+              { label: 'DPS CURRENT',         value: formatRs(metrics.dividendGrowth.dividendPerShare) },
+              { label: 'CAGR 3Y',             value: formatPct(metrics.dividendGrowth.dividendCagr3y), tone: growthTone(metrics.dividendGrowth.dividendCagr3y) },
+              { label: 'CAGR 5Y',             value: formatPct(metrics.dividendGrowth.dividendCagr5y), tone: growthTone(metrics.dividendGrowth.dividendCagr5y) },
+              { label: 'EARNINGS CAGR 3Y',    value: formatPct(metrics.dividendGrowth.earningsCagr3y), tone: growthTone(metrics.dividendGrowth.earningsCagr3y) },
+              { label: 'GROWTH CONSISTENCY',  value: formatScore(metrics.dividendGrowth.growthConsistency), tone: scoreTone(metrics.dividendGrowth.growthConsistency) },
             ]} />
             <MetricGroup title="OPPORTUNITY SIGNALS" metrics={[
-              ['QUALITY SIGNAL',      formatScore(metrics.opportunity.qualitySignal)],
-              ['VALUE SIGNAL',        formatScore(metrics.opportunity.valueSignal)],
-              ['TECHNICAL SIGNAL',    formatScore(metrics.opportunity.technicalSignal)],
-              ['OPPORTUNITY SCORE',   formatScore(metrics.opportunity.opportunityScore)],
+              { label: 'QUALITY SIGNAL',      value: formatScore(metrics.opportunity.qualitySignal),     tone: scoreTone(metrics.opportunity.qualitySignal) },
+              { label: 'VALUE SIGNAL',        value: formatScore(metrics.opportunity.valueSignal),       tone: scoreTone(metrics.opportunity.valueSignal) },
+              { label: 'TECHNICAL SIGNAL',    value: formatScore(metrics.opportunity.technicalSignal),   tone: scoreTone(metrics.opportunity.technicalSignal) },
+              { label: 'OPPORTUNITY SCORE',   value: formatScore(metrics.opportunity.opportunityScore),  tone: scoreTone(metrics.opportunity.opportunityScore) },
             ]} />
           </div>
         </TabsContent>
@@ -207,18 +207,18 @@ export default function StockPage() {
           <TabsContent value="banking" className="mt-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <MetricGroup title="PROFITABILITY" metrics={[
-                ['NET INTEREST MARGIN', formatPct(metrics.banking.nim)],
-                ['RETURN ON ASSETS',    formatPct(metrics.banking.roa)],
-                ['RETURN ON EQUITY',    formatPct(metrics.banking.roe)],
-                ['COST TO INCOME',      formatPct(metrics.banking.costToIncome)],
-                ['FEE INCOME RATIO',    formatPct(metrics.banking.feeIncomeRatio)],
+                { label: 'NET INTEREST MARGIN', value: formatPct(metrics.banking.nim),            tone: nimTone(metrics.banking.nim) },
+                { label: 'RETURN ON ASSETS',    value: formatPct(metrics.banking.roa),            tone: roaTone(metrics.banking.roa) },
+                { label: 'RETURN ON EQUITY',    value: formatPct(metrics.banking.roe),            tone: roeTone(metrics.banking.roe) },
+                { label: 'COST TO INCOME',      value: formatPct(metrics.banking.costToIncome),   tone: cirTone(metrics.banking.costToIncome) },
+                { label: 'FEE INCOME RATIO',    value: formatPct(metrics.banking.feeIncomeRatio) },
               ]} />
               <MetricGroup title="CAPITAL & LIQUIDITY" metrics={[
-                ['CAR',       formatPct(metrics.banking.car)],
-                ['TIER 1',    formatPct(metrics.banking.tier1Ratio)],
-                ['LCR',       formatPct(metrics.banking.lcr)],
-                ['ADR',       formatPct(metrics.banking.adr)],
-                ['NPL RATIO', formatPct(metrics.banking.nplRatio)],
+                { label: 'CAR',       value: formatPct(metrics.banking.car),         tone: carTone(metrics.banking.car) },
+                { label: 'TIER 1',    value: formatPct(metrics.banking.tier1Ratio),  tone: carTone(metrics.banking.tier1Ratio) },
+                { label: 'LCR',       value: formatPct(metrics.banking.lcr) },
+                { label: 'ADR',       value: formatPct(metrics.banking.adr) },
+                { label: 'NPL RATIO', value: formatPct(metrics.banking.nplRatio),    tone: nplTone(metrics.banking.nplRatio) },
               ]} />
             </div>
           </TabsContent>
@@ -244,7 +244,13 @@ function TerminalTabTrigger({ value, label }: { value: string; label: string }) 
   );
 }
 
-function MetricGroup({ title, metrics }: { title: string; metrics: [string, string][] }) {
+interface MetricRow {
+  label: string;
+  value: string;
+  tone?: string;
+}
+
+function MetricGroup({ title, metrics }: { title: string; metrics: MetricRow[] }) {
   return (
     <div className="panel">
       <div className="panel-strip px-4 py-1.5">
@@ -253,13 +259,128 @@ function MetricGroup({ title, metrics }: { title: string; metrics: [string, stri
         </span>
       </div>
       <div className="divide-y divide-border">
-        {metrics.map(([label, value]) => (
-          <div key={label} className="flex justify-between items-center px-4 py-2 hover:bg-white/[0.02] transition-colors">
+        {metrics.map(({ label, value, tone }) => (
+          <div key={label} className="flex justify-between items-center px-4 py-2 hover:bg-amber-500/[0.04] transition-colors">
             <span className="text-[10px] uppercase tracking-[0.15em] text-warm-muted font-bold">{label}</span>
-            <span className="num font-bold text-[12px] text-foreground">{value}</span>
+            <span className={cn('num font-bold text-[12px]', tone ?? 'text-foreground')}>{value}</span>
           </div>
         ))}
       </div>
     </div>
   );
+}
+
+/* ── Per-metric tone helpers (live in this file because they're stock-specific) ── */
+
+function fmtX(v: number | null | undefined, decimals = 2): string {
+  if (v == null) return '—';
+  return `${v.toFixed(decimals)}X`;
+}
+
+function payoutTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v > 1)    return 'text-warn';   // > 100% payout — unsustainable
+  if (v > 0.8)  return 'text-amber';  // 80-100% rising
+  return 'text-cyan-pos';             // healthy
+}
+
+function debtToEquityTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v > 2)    return 'text-warn';
+  if (v > 1)    return 'text-amber';
+  return 'text-cyan-pos';
+}
+
+function yearsTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 10) return 'text-cyan-pos';
+  if (v >= 5)  return 'text-amber';
+  return 'text-warm-muted';
+}
+
+function peTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v <= 0)  return 'text-warn';
+  if (v < 8)   return 'text-cyan-pos';
+  if (v < 15)  return 'text-amber';
+  return 'text-warn';
+}
+
+function pbTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < 1)    return 'text-cyan-pos';
+  if (v < 2)    return 'text-amber';
+  return 'text-warm-muted';
+}
+
+function mosTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 20)  return 'text-cyan-pos';
+  if (v >= 0)   return 'text-amber';
+  return 'text-warn';
+}
+
+function rsiTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < 30)  return 'text-cyan-pos';   // oversold = opportunity
+  if (v > 70)  return 'text-warn';       // overbought = caution
+  return 'text-warm-muted';
+}
+
+function drawdownTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < -20) return 'text-warn';
+  if (v < -10) return 'text-amber';
+  return 'text-warm-muted';
+}
+
+function growthTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 15) return 'text-cyan-pos';
+  if (v >= 5)  return 'text-amber';
+  if (v >= 0)  return 'text-warm-muted';
+  return 'text-warn';
+}
+
+/* Banking-specific bands */
+function nimTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 4) return 'text-cyan-pos';
+  if (v >= 3) return 'text-amber';
+  return 'text-warn';
+}
+
+function roaTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 1.5) return 'text-cyan-pos';
+  if (v >= 1)   return 'text-amber';
+  return 'text-warn';
+}
+
+function roeTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 18) return 'text-cyan-pos';
+  if (v >= 12) return 'text-amber';
+  return 'text-warn';
+}
+
+function cirTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < 45)  return 'text-cyan-pos';
+  if (v < 55)  return 'text-amber';
+  return 'text-warn';
+}
+
+function carTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 17) return 'text-cyan-pos';
+  if (v >= 14) return 'text-amber';
+  return 'text-warn';
+}
+
+function nplTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < 3)  return 'text-cyan-pos';
+  if (v < 6)  return 'text-amber';
+  return 'text-warn';
 }

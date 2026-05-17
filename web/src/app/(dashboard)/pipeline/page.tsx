@@ -5,14 +5,8 @@ import {
   useTriggerCompute, useTriggerExport, useScheduleConfig, useUpdateScheduleConfig,
 } from '@/lib/api/queries';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import {
-  Play, RefreshCw, Download, CheckCircle, XCircle,
-  Clock, Activity, Zap, CalendarClock,
-} from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:59931';
@@ -27,10 +21,19 @@ interface LiveProgress {
 
 function statusChip(status: string) {
   switch (status) {
-    case 'completed': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25';
-    case 'failed':    return 'text-red-400 bg-red-500/10 border-red-500/25';
-    case 'running':   return 'text-blue-400 bg-blue-500/10 border-blue-500/25';
-    default:          return 'text-muted-foreground bg-muted/20 border-border/40';
+    case 'completed': return 'text-cyan-pos bg-[oklch(0.79_0.13_180_/_10%)] border-[oklch(0.79_0.13_180_/_40%)]';
+    case 'failed':    return 'text-warn bg-[oklch(0.68_0.22_25_/_10%)] border-[oklch(0.68_0.22_25_/_40%)]';
+    case 'running':   return 'text-amber bg-[oklch(0.78_0.16_75_/_10%)] border-[oklch(0.78_0.16_75_/_40%)]';
+    default:          return 'text-warm-muted bg-white/[0.02] border-border';
+  }
+}
+
+function statusMarker(status: string) {
+  switch (status) {
+    case 'completed': return '✓';
+    case 'failed':    return '✕';
+    case 'running':   return '◐';
+    default:          return '·';
   }
 }
 
@@ -84,22 +87,23 @@ export default function PipelinePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Pipeline Monitor</h1>
-          <p className="text-muted-foreground text-xs mt-0.5">
-            Scrape, compute, and export pipeline management
-          </p>
+          <div className="text-[9px] text-amber font-bold tracking-[0.22em] uppercase mb-1">
+            ┌── PIPELINE
+          </div>
+          <h1 className="text-foreground font-bold text-[20px] tracking-tight">
+            SCRAPE · COMPUTE · EXPORT
+          </h1>
         </div>
         <button
           onClick={() => {
             qc.invalidateQueries({ queryKey: ['pipeline', 'status'] });
             qc.invalidateQueries({ queryKey: ['pipeline', 'runs'] });
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-border/50 text-[11px] text-muted-foreground hover:text-foreground hover:border-border transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-bold px-3 py-1.5 border border-border bg-card text-warm-muted hover:text-amber hover:border-primary/50 cursor-pointer transition-colors"
         >
-          <RefreshCw className="h-3 w-3" />
-          Refresh
+          ⟳ REFRESH
         </button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -120,7 +124,7 @@ export default function PipelinePage() {
 function StatusPanel({ liveProgress }: { liveProgress: LiveProgress | null }) {
   const { data, isLoading } = usePipelineStatus();
 
-  if (isLoading) return <Skeleton className="h-40 w-full rounded-sm" />;
+  if (isLoading) return <Skeleton className="h-40 w-full" style={{ borderRadius: 0 }} />;
   if (!data) return null;
 
   const active = liveProgress ?? (data.activeJob ? {
@@ -134,37 +138,34 @@ function StatusPanel({ liveProgress }: { liveProgress: LiveProgress | null }) {
   const pct = active && active.total > 0 ? (active.progress / active.total) * 100 : 0;
 
   return (
-    <Card className="border-border/50 card-panel overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <div className="flex items-center gap-2">
-          <Activity className="h-3.5 w-3.5 text-primary" />
-          <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
-          {active && (
-            <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-sm border border-blue-500/25 bg-blue-500/10 text-blue-400 font-medium uppercase tracking-wide animate-pulse">
-              {active.jobType} running
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 space-y-3">
+    <div className="panel">
+      <div className="panel-strip px-4 py-1.5 flex items-center justify-between">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ PIPELINE STATUS</span>
         {active && (
-          <div className="rounded-sm border border-primary/15 bg-primary/[0.04] p-3 space-y-2">
-            <div className="flex justify-between text-[12px]">
-              <span className="font-medium capitalize">{active.jobType}</span>
-              <span className="num text-muted-foreground">
-                {active.total > 0 ? `${active.progress}/${active.total}` : 'running…'}
+          <span className="text-[9px] tracking-[0.18em] uppercase text-amber font-bold border border-primary/40 bg-primary/10 px-1.5 py-0.5 animate-pulse">
+            ◐ {active.jobType} RUNNING
+          </span>
+        )}
+      </div>
+      <div className="p-4 space-y-3">
+        {active && (
+          <div className="border border-primary/30 bg-primary/[0.05] p-3 space-y-2">
+            <div className="flex justify-between text-[11px]">
+              <span className="font-bold text-amber uppercase tracking-[0.15em]">{active.jobType}</span>
+              <span className="num text-foreground font-bold">
+                {active.total > 0 ? `${active.progress}/${active.total}` : 'RUNNING…'}
               </span>
             </div>
             {active.source && (
-              <div className="num text-[11px] text-muted-foreground">
-                Processing: <span className="text-foreground">{active.source}</span>
+              <div className="num text-[10px] text-warm-muted uppercase tracking-[0.1em]">
+                PROCESSING <span className="text-foreground font-bold">{active.source}</span>
               </div>
             )}
-            <div className="w-full bg-border/40 rounded-full h-1.5 mt-1 overflow-hidden">
+            <div className="w-full bg-white/[0.08] h-[3px] overflow-hidden">
               <div
                 className={cn(
-                  'h-1.5 rounded-full transition-all duration-500',
-                  active.total > 0 ? 'bg-primary' : 'bg-primary/60 animate-pulse w-full',
+                  'h-full transition-all duration-500 bg-primary',
+                  active.total === 0 && 'animate-pulse w-full',
                 )}
                 style={{ width: active.total > 0 ? `${pct}%` : '100%' }}
               />
@@ -173,47 +174,48 @@ function StatusPanel({ liveProgress }: { liveProgress: LiveProgress | null }) {
         )}
 
         <div className="grid grid-cols-2 gap-2">
-          {data.sources.map((s) => (
-            <div key={s.name} className="flex items-start gap-2.5 p-2.5 rounded-sm border border-border/30 bg-muted/[0.03]">
-              {s.status === 'completed' ? (
-                <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-              ) : s.status === 'failed' ? (
-                <XCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
-              ) : s.status === 'running' ? (
-                <RefreshCw className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0 animate-spin" />
-              ) : (
-                <Clock className="h-3.5 w-3.5 text-muted-foreground/50 mt-0.5 shrink-0" />
-              )}
-              <div className="min-w-0">
-                <div className="text-[12px] font-medium">{s.name}</div>
-                <div className="num text-[10px] text-muted-foreground/60 mt-0.5">
-                  {s.lastRunAt
-                    ? new Date(s.lastRunAt).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })
-                    : 'Never'}
-                  {s.stocksScraped != null && s.stocksScraped > 0 && (
-                    s.name === 'Macro'
-                      ? ` · ${s.stocksScraped} indicators`
-                      : ` · ${s.stocksScraped} stocks`
-                  )}
+          {data.sources.map((s) => {
+            const tone =
+              s.status === 'completed' ? 'text-cyan-pos border-[oklch(0.79_0.13_180_/_30%)]' :
+              s.status === 'failed' ? 'text-warn border-[oklch(0.68_0.22_25_/_30%)]' :
+              s.status === 'running' ? 'text-amber border-[oklch(0.78_0.16_75_/_30%)]' :
+              'text-warm-dim border-border';
+            return (
+              <div key={s.name} className={cn('flex items-start gap-2 p-2 border bg-white/[0.015]', tone)}>
+                <span className="text-[12px] font-bold leading-none mt-px shrink-0">
+                  {statusMarker(s.status)}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold text-foreground uppercase tracking-[0.08em]">{s.name}</div>
+                  <div className="num text-[9px] text-warm-dim uppercase tracking-[0.1em] mt-0.5 font-medium">
+                    {s.lastRunAt
+                      ? new Date(s.lastRunAt).toLocaleDateString('en-PK', { month: 'short', day: '2-digit' }).toUpperCase()
+                      : 'NEVER'}
+                    {s.stocksScraped != null && s.stocksScraped > 0 && (
+                      s.name === 'Macro'
+                        ? ` · ${s.stocksScraped} IND`
+                        : ` · ${s.stocksScraped} STK`
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div className="flex gap-5 num text-[10px] text-muted-foreground/50 pt-1 border-t border-border/20">
+        <div className="flex gap-5 num text-[9px] uppercase tracking-[0.15em] text-warm-dim pt-2 border-t border-border font-bold">
           <span>
-            Computed:{' '}
-            <span className="text-muted-foreground">
+            COMPUTED ·{' '}
+            <span className="text-foreground">
               {data.lastComputedAt
-                ? new Date(data.lastComputedAt).toLocaleDateString('en-PK', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                : 'Never'}
+                ? new Date(data.lastComputedAt).toLocaleDateString('en-PK', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).toUpperCase()
+                : 'NEVER'}
             </span>
           </span>
-          <span>Queue depth: <span className="text-muted-foreground">{data.queueDepth}</span></span>
+          <span>QUEUE · <span className="text-foreground">{data.queueDepth}</span></span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -235,39 +237,30 @@ function TriggerPanel() {
   };
 
   return (
-    <Card className="border-border/50 card-panel overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <div className="flex items-center gap-2">
-          <Zap className="h-3.5 w-3.5 text-primary" />
-          <CardTitle className="text-sm font-semibold">Run Jobs</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 space-y-3">
-        {/* Per-source scrape buttons */}
+    <div className="panel">
+      <div className="panel-strip px-4 py-1.5">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ RUN JOBS</span>
+      </div>
+      <div className="p-3 space-y-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Scrape</p>
-          <div className="space-y-1.5">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-warm-dim mb-2">─ SCRAPE</p>
+          <div className="space-y-1">
             {SOURCES.map((s) => (
-              <div key={s.key} className="flex items-center gap-2 p-2 rounded-sm border border-border/30 bg-muted/[0.02]">
+              <div key={s.key} className="flex items-center gap-2 px-2 py-1.5 border border-border bg-white/[0.015]">
                 <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-medium">{s.label}</div>
-                  <div className="text-[10px] text-muted-foreground/50">{s.description}</div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-foreground">{s.label}</div>
+                  <div className="text-[9px] uppercase tracking-[0.1em] text-warm-dim font-medium mt-0.5">{s.description}</div>
                 </div>
                 <button
                   onClick={() => triggerSource(s.key)}
                   disabled={scrape.isPending}
                   className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-sm text-[10px] font-semibold uppercase tracking-wide transition-colors cursor-pointer',
-                    'border border-primary/30 text-primary hover:bg-primary/10',
+                    'inline-flex items-center gap-1 px-2 py-1 text-[9px] uppercase tracking-[0.18em] font-bold transition-colors cursor-pointer',
+                    'border border-primary/50 text-amber hover:bg-primary/15',
                     scrape.isPending && 'opacity-50 cursor-not-allowed',
                   )}
                 >
-                  {pendingSource === s.key ? (
-                    <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                  ) : (
-                    <Play className="h-2.5 w-2.5" />
-                  )}
-                  {pendingSource === s.key ? 'Queuing' : 'Run'}
+                  {pendingSource === s.key ? '◐ QUEUE' : '▶ RUN'}
                 </button>
               </div>
             ))}
@@ -275,47 +268,41 @@ function TriggerPanel() {
               onClick={() => scrape.mutate({})}
               disabled={scrape.isPending}
               className={cn(
-                'w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-sm text-[11px] font-semibold transition-colors cursor-pointer',
-                'bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20',
+                'w-full mt-1 text-[10px] uppercase tracking-[0.18em] font-bold py-1.5 border bg-primary/10 border-primary/40 text-amber hover:bg-primary/20 transition-colors cursor-pointer',
                 scrape.isPending && 'opacity-50 cursor-not-allowed',
               )}
             >
-              <Play className="h-3 w-3" />
-              {scrape.isPending && !pendingSource ? 'Queuing…' : 'Scrape All Sources'}
+              {scrape.isPending && !pendingSource ? '◐ QUEUING…' : '[ ▶ SCRAPE ALL ]'}
             </button>
           </div>
         </div>
 
-        <div className="border-t border-border/20 pt-2 space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Pipeline</p>
-          <Button
-            variant="outline"
+        <div className="border-t border-border pt-2 space-y-1">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-warm-dim mb-2">─ PIPELINE</p>
+          <button
             onClick={() => compute.mutate(undefined)}
             disabled={compute.isPending}
-            className="w-full h-8 text-xs gap-2 cursor-pointer border-border/50"
+            className="w-full text-[10px] uppercase tracking-[0.18em] font-bold py-1.5 border border-border bg-card text-warm-muted hover:text-amber hover:border-primary/50 transition-colors cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            {compute.isPending ? 'Queuing…' : 'Compute Metrics'}
-          </Button>
-          <Button
-            variant="outline"
+            {compute.isPending ? '◐ COMPUTING…' : '⟳ COMPUTE METRICS'}
+          </button>
+          <button
             onClick={() => exportRun.mutate()}
             disabled={exportRun.isPending}
-            className="w-full h-8 text-xs gap-2 cursor-pointer border-border/50"
+            className="w-full text-[10px] uppercase tracking-[0.18em] font-bold py-1.5 border border-border bg-card text-warm-muted hover:text-amber hover:border-primary/50 transition-colors cursor-pointer disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5" />
-            {exportRun.isPending ? 'Queuing…' : 'Export Data'}
-          </Button>
+            {exportRun.isPending ? '◐ EXPORTING…' : '↓ EXPORT DATA'}
+          </button>
         </div>
 
         {(scrape.isSuccess || compute.isSuccess || exportRun.isSuccess) && (
-          <p className="text-[11px] text-emerald-500 text-center">Job queued successfully</p>
+          <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-cyan-pos text-center">✓ JOB QUEUED</p>
         )}
         {(scrape.isError || compute.isError || exportRun.isError) && (
-          <p className="text-[11px] text-red-500 text-center">Failed to queue job</p>
+          <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-warn text-center">✕ QUEUE FAILED</p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -333,16 +320,13 @@ function SchedulePanel() {
   }, [schedule]);
 
   return (
-    <Card className="border-border/50 card-panel overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <div className="flex items-center gap-2">
-          <CalendarClock className="h-3.5 w-3.5 text-primary" />
-          <CardTitle className="text-sm font-semibold">Auto Schedule</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 space-y-3">
+    <div className="panel">
+      <div className="panel-strip px-4 py-1.5">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ AUTO SCHEDULE</span>
+      </div>
+      <div className="p-3 space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] font-medium">Daily Run</span>
+          <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-warm-muted">DAILY RUN</span>
           <button
             onClick={() => {
               const next = !enabled;
@@ -350,18 +334,17 @@ function SchedulePanel() {
               if (schedule) update.mutate({ ...schedule, enabled: next });
             }}
             className={cn(
-              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer',
-              enabled ? 'bg-primary' : 'bg-border/60',
+              'inline-flex items-center gap-1.5 text-[9px] uppercase tracking-[0.18em] font-bold px-2 py-1 border cursor-pointer transition-colors',
+              enabled
+                ? 'border-cyan-pos text-cyan-pos bg-[oklch(0.79_0.13_180_/_10%)]'
+                : 'border-border text-warm-dim bg-card',
             )}
           >
-            <span className={cn(
-              'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform',
-              enabled ? 'translate-x-4' : 'translate-x-0.5',
-            )} />
+            {enabled ? '● ENABLED' : '○ DISABLED'}
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">Time (PKT)</span>
+          <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-warm-muted">TIME (PKT)</span>
           <input
             type="time"
             value={time}
@@ -369,14 +352,14 @@ function SchedulePanel() {
             onBlur={() => {
               if (schedule) update.mutate({ ...schedule, dailyRunTime: time });
             }}
-            className="ml-auto num text-[12px] bg-muted/20 rounded-sm px-2 py-1 border border-border/40 text-foreground focus:outline-none focus:border-primary/50"
+            className="ml-auto num text-[11px] bg-card border border-border px-2 py-1 text-foreground focus:outline-none focus:border-primary/50 font-bold"
           />
         </div>
-        <p className="num text-[10px] text-muted-foreground/60">
-          {enabled ? `Next run at ${time} PKT` : 'Automatic scheduling disabled'}
+        <p className="num text-[9px] uppercase tracking-[0.15em] font-bold text-warm-dim border-t border-border pt-2">
+          {enabled ? `NEXT RUN · ${time} PKT` : 'AUTO SCHEDULE DISABLED'}
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -388,28 +371,26 @@ function LiveEventsLog({ events }: { events: string[] }) {
   }, [events]);
 
   return (
-    <Card className="border-border/50 card-panel overflow-hidden">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <div className="flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <CardTitle className="text-sm font-semibold">Live Events</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="p-3">
+    <div className="panel">
+      <div className="panel-strip px-4 py-1.5 flex items-center gap-2">
+        <span className="inline-block h-1.5 w-1.5 bg-cyan-pos animate-pulse" style={{ background: 'var(--verdict-acc)' }} />
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ LIVE EVENTS</span>
+      </div>
+      <div className="p-2">
         <div
           ref={eventsRef}
-          className="h-40 overflow-y-auto num text-[10px] space-y-0.5 text-muted-foreground/60 leading-relaxed"
+          className="h-40 overflow-y-auto num text-[10px] space-y-px text-warm-muted leading-relaxed bg-black/30 border border-border p-2"
         >
           {events.length === 0 ? (
-            <p className="text-muted-foreground/40">Waiting for events…</p>
+            <p className="text-warm-dim uppercase tracking-[0.15em] font-bold">▶ WAITING FOR EVENTS…</p>
           ) : (
             events.map((e, i) => (
-              <div key={i} className="border-b border-border/10 pb-0.5">{e}</div>
+              <div key={i} className="border-b border-border/30 pb-px text-foreground/80">{e}</div>
             ))
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -417,67 +398,59 @@ function RunHistoryTable() {
   const { data, isLoading } = usePipelineRuns(1);
 
   return (
-    <Card className="overflow-hidden border-border/50 card-panel">
-      <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/5">
-        <CardTitle className="text-sm font-semibold">Run History</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="p-5 space-y-2">
-            <Skeleton className="h-8 w-full rounded-sm" />
-            <Skeleton className="h-8 w-full rounded-sm" />
-          </div>
-        ) : !data?.items.length ? (
-          <p className="px-6 py-8 text-sm text-muted-foreground text-center">No runs yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/40" style={{ background: 'oklch(1 0 0 / 2%)' }}>
-                  <th className="text-left pl-5 pr-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Source</th>
-                  <th className="text-left px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Mode</th>
-                  <th className="text-left px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Status</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Records</th>
-                  <th className="text-right pr-5 pl-3 py-2.5 text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-widest">Started</th>
+    <div className="panel">
+      <div className="panel-strip px-4 py-1.5">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ RUN HISTORY</span>
+      </div>
+      {isLoading ? (
+        <div className="p-3 space-y-1.5">
+          <Skeleton className="h-8 w-full" style={{ borderRadius: 0 }} />
+          <Skeleton className="h-8 w-full" style={{ borderRadius: 0 }} />
+        </div>
+      ) : !data?.items.length ? (
+        <p className="px-6 py-8 text-[11px] uppercase tracking-[0.18em] text-warm-dim text-center font-bold">
+          NO RUNS LOGGED
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px] num">
+            <thead>
+              <tr className="border-b border-border bg-white/[0.015]">
+                <th className="text-left pl-4 pr-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">SOURCE</th>
+                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">MODE</th>
+                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STATUS</th>
+                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">RECORDS</th>
+                <th className="text-right pr-4 pl-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STARTED</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {data.items.map((r) => (
+                <tr key={r.id} className="hover:bg-amber-500/[0.04] transition-colors">
+                  <td className="pl-4 pr-3 py-2 text-foreground font-bold tracking-[0.05em] uppercase">{r.source}</td>
+                  <td className="px-3 py-2 text-warm-muted uppercase tracking-[0.1em]">{r.mode}</td>
+                  <td className="px-3 py-2">
+                    <span className={cn(
+                      'text-[9px] font-bold px-1.5 py-0.5 border uppercase tracking-[0.15em]',
+                      statusChip(r.status),
+                    )}>
+                      {statusMarker(r.status)} {r.status}
+                    </span>
+                  </td>
+                  <td className="text-right px-3 py-2 text-foreground font-bold">
+                    {r.symbolCount > 0 ? `${r.recordsScraped}/${r.symbolCount}` : r.recordsScraped}
+                  </td>
+                  <td className="text-right pr-4 pl-3 py-2 text-warm-muted uppercase tracking-[0.05em]">
+                    {new Date(r.startedAt).toLocaleString('en-PK', {
+                      month: 'short', day: '2-digit',
+                      hour: '2-digit', minute: '2-digit',
+                    }).toUpperCase()}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.items.map((r) => (
-                  <tr key={r.id} className="border-b border-border/30 hover:bg-primary/[0.04] transition-colors">
-                    <td className="pl-5 pr-3 py-3">
-                      <span className="num font-semibold text-[13px]">{r.source}</span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="text-[12px] text-muted-foreground">{r.mode}</span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={cn(
-                        'text-[10px] font-medium px-1.5 py-0.5 rounded-sm border uppercase tracking-wide',
-                        statusChip(r.status),
-                      )}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="text-right px-3 py-3">
-                      <span className="num text-[13px] text-muted-foreground">
-                        {r.symbolCount > 0 ? `${r.recordsScraped}/${r.symbolCount}` : r.recordsScraped}
-                      </span>
-                    </td>
-                    <td className="text-right pr-5 pl-3 py-3">
-                      <span className="num text-[11px] text-muted-foreground/60">
-                        {new Date(r.startedAt).toLocaleString('en-PK', {
-                          month: 'short', day: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
-                        })}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
