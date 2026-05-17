@@ -43,3 +43,15 @@ public record PricePointDto(
     decimal Close,
     long? Volume,
     decimal? ChangePct);
+
+public record SignalHistoryDto(
+    string Symbol,
+    int Days,
+    SignalHistoryPointDto[] Points);
+
+public record SignalHistoryPointDto(
+    DateOnly Date,
+    string Verdict,
+    decimal? Composite,
+    decimal? Safety,
+    string ConvictionLevel);

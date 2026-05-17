@@ -12,12 +12,14 @@ import {
   Activity,
   TrendingUp,
   FileJson,
+  GitCompare,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Command Center', icon: LayoutDashboard },
   { href: '/watchlist',  label: 'Watchlist',      icon: List },
   { href: '/screener',   label: 'Screener',        icon: Filter },
+  { href: '/compare',    label: 'Compare',         icon: GitCompare },
   { href: '/dividends',  label: 'Dividends',       icon: CalendarDays },
   { href: '/portfolio',  label: 'Portfolio',        icon: Briefcase },
   { href: '/pipeline',   label: 'Pipeline',         icon: Activity },
@@ -45,7 +47,7 @@ export function Sidebar() {
         <div className="px-3 pb-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Analytics</span>
         </div>
-        {NAV_ITEMS.slice(0, 3).map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.slice(0, 4).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
             <NavLink key={href} href={href} label={label} icon={Icon} active={active} />
@@ -55,7 +57,7 @@ export function Sidebar() {
         <div className="px-3 py-2 mt-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Management</span>
         </div>
-        {NAV_ITEMS.slice(3).map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.slice(4).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
             <NavLink key={href} href={href} label={label} icon={Icon} active={active} />

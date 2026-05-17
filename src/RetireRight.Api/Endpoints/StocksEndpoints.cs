@@ -32,6 +32,10 @@ public static class StocksEndpoints
         group.MapGet("/{symbol}/price-history", GetPriceHistoryAsync)
             .WithName("GetPriceHistory")
             .WithSummary("Get price history for a stock");
+
+        group.MapGet("/{symbol}/signal-history", GetSignalHistoryAsync)
+            .WithName("GetSignalHistory")
+            .WithSummary("Get derived verdict history for the last N days");
     }
 
     private static async Task<IResult> GetWatchlistAsync(
@@ -169,6 +173,47 @@ public static class StocksEndpoints
             .ToArray();
 
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetSignalHistoryAsync(
+        string symbol,
+        int? days,
+        RetireRightDbContext db,
+        IStockRepository stockRepo,
+        CancellationToken ct)
+    {
+        var stock = await stockRepo.GetBySymbolAsync(symbol.ToUpper(), ct);
+        if (stock is null) return Results.NotFound();
+
+        var lookbackDays = Math.Clamp(days ?? 30, 1, 365);
+        var fromDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-lookbackDays));
+
+        var rows = await db.ComputedMetrics
+            .Where(c => c.StockId == stock.Id && c.ComputedDate >= fromDate)
+            .OrderBy(c => c.ComputedDate)
+            .ToListAsync(ct);
+
+        var sectorStr = stock.Sector.ToString();
+        var points = rows.Select(c =>
+        {
+            var grammar = SignalGrammar.Derive(
+                c.Metrics,
+                c,
+                // Use ComputedDate as scrapedAt proxy — the actual scrapedAt at compute time is
+                // not preserved in the row, but ComputedDate gives the day-level granularity
+                // needed for verdict freshness band logic.
+                c.UpdatedAt,
+                sectorStr);
+
+            return new SignalHistoryPointDto(
+                c.ComputedDate,
+                grammar.Verdict,
+                c.CompositeScore,
+                c.DividendSafetyScore,
+                grammar.ConvictionLevel);
+        }).ToArray();
+
+        return Results.Ok(new SignalHistoryDto(stock.Symbol, lookbackDays, points));
     }
 
     private static StockSummaryDto BuildSummaryDto(

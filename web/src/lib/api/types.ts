@@ -51,6 +51,20 @@ export interface PricePointDto {
   changePct: number | null;
 }
 
+export interface SignalHistoryDto {
+  symbol: string;
+  days: number;
+  points: SignalHistoryPointDto[];
+}
+
+export interface SignalHistoryPointDto {
+  date: string;
+  verdict: Verdict;
+  composite: number | null;
+  safety: number | null;
+  convictionLevel: ConvictionLevel;
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 export interface StockMetricsDto {

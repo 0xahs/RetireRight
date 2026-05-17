@@ -9,6 +9,7 @@ import { ConvictionDots } from './conviction-dots';
 import { SafetyTier } from './safety-tier';
 import { WhyLine } from './why-line';
 import { StockLogo } from '@/components/stock-logo';
+import { CompareButton } from '@/components/compare/compare-sticky-bar';
 import { TrendingUp, TrendingDown, ArrowRight, Clock } from 'lucide-react';
 
 interface ASUCardProps {
@@ -112,9 +113,12 @@ export function ASUCard({ stock, className }: ASUCardProps) {
             <span>·</span>
             <span>{stock.metricCompleteness}% metrics</span>
           </div>
-          <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary inline-flex items-center gap-0.5 transition-colors">
-            Open <ArrowRight className="h-2.5 w-2.5" />
-          </span>
+          <div className="flex items-center gap-2">
+            <CompareButton symbol={stock.symbol} variant="icon" />
+            <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary inline-flex items-center gap-0.5 transition-colors">
+              Open <ArrowRight className="h-2.5 w-2.5" />
+            </span>
+          </div>
         </div>
       </div>
     </Link>

@@ -7,9 +7,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { formatRs, formatPct, formatScore } from '@/lib/utils/format';
-import { ScoreCard, SignalBadge, FlagBadge, SectorBadge } from '@/components/stock-ui';
+import { FlagBadge, SectorBadge } from '@/components/stock-ui';
 import { StockLogo } from '@/components/stock-logo';
 import { PriceChart } from '@/components/price-chart';
+import { VerdictStrip } from '@/components/signal/verdict-strip';
+import { CompareButton } from '@/components/compare/compare-sticky-bar';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
 export default function StockPage() {
@@ -49,37 +51,41 @@ export default function StockPage() {
             <p className="text-muted-foreground text-sm">{summary.name}</p>
           </div>
         </div>
-        <div className="text-right">
-          <div className="num text-2xl font-bold tracking-tight">{formatRs(summary.price)}</div>
-          {summary.changePct != null && (
-            <div className={cn(
-              'num text-sm flex items-center justify-end gap-1 mt-0.5 font-medium',
-              summary.changePct >= 0 ? 'text-emerald-500' : 'text-red-500'
-            )}>
-              {summary.changePct >= 0
-                ? <TrendingUp className="h-3.5 w-3.5" />
-                : <TrendingDown className="h-3.5 w-3.5" />}
-              {summary.changePct >= 0 ? '+' : ''}{formatPct(summary.changePct)} today
+        <div className="flex items-start gap-3">
+          <div className="text-right">
+            <div className="num text-2xl font-bold tracking-tight">{formatRs(summary.price)}</div>
+            {summary.changePct != null && (
+              <div className={cn(
+                'num text-sm flex items-center justify-end gap-1 mt-0.5 font-medium',
+                summary.changePct >= 0 ? 'text-emerald-500' : 'text-red-500'
+              )}>
+                {summary.changePct >= 0
+                  ? <TrendingUp className="h-3.5 w-3.5" />
+                  : <TrendingDown className="h-3.5 w-3.5" />}
+                {summary.changePct >= 0 ? '+' : ''}{formatPct(summary.changePct)} today
+              </div>
+            )}
+            <div className="mt-2">
+              <CompareButton symbol={summary.symbol} />
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Score cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <ScoreCard label="Composite" score={metrics.scores.composite} />
-        <ScoreCard label="Safety"    score={metrics.scores.safety} />
-        <ScoreCard label="Growth"    score={metrics.scores.growth} />
-        <ScoreCard label="Valuation" score={metrics.scores.valuation} />
-      </div>
+      {/* Verdict strip (Sprint C — decision-first header) */}
+      <VerdictStrip summary={summary} />
 
-      {/* Signal + flags strip */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <SignalBadge signal={summary.signal} />
-        {summary.opportunityFlags.map((f) => (
-          <FlagBadge key={f} flag={f} />
-        ))}
-      </div>
+      {/* Flags strip — opportunity context for the verdict */}
+      {summary.opportunityFlags.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[9px] uppercase tracking-widest text-muted-foreground/45 font-semibold mr-1">
+            Active flags
+          </span>
+          {summary.opportunityFlags.map((f) => (
+            <FlagBadge key={f} flag={f} />
+          ))}
+        </div>
+      )}
 
       {/* Price chart */}
       {data.priceHistory.length > 0 && (
