@@ -104,11 +104,14 @@ public static class PlanGenerator
             var allocated = shares * price;
             totalAllocated += allocated;
 
-            var dps = c.Computed?.Metrics.GetValueOrDefault("dps");
-            var expected = dps.HasValue ? shares * dps.Value : (decimal?)null;
+            // DPS lives in fundamentals, not computed_metrics. Derive income from net yield * allocated.
+            var netYield = c.Grammar.NetYield;
+            var expected = (netYield is { } nyl && nyl > 0 && allocated > 0)
+                ? Math.Round(allocated * nyl / 100m, 2)
+                : (decimal?)null;
             if (expected.HasValue) expectedIncome += expected.Value;
 
-            if (c.Grammar.NetYield is { } ny) yieldSamples.Add(ny);
+            if (netYield is { } ny) yieldSamples.Add(ny);
 
             picks.Add(new PlanPickDto(
                 Symbol: c.Stock.Symbol,
