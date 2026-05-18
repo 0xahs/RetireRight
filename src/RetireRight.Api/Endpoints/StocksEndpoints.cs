@@ -52,10 +52,18 @@ public static class StocksEndpoints
 
         foreach (var stock in stocks)
         {
-            var price = await db.DailyPrices
+            var recentPrices = await db.DailyPrices
                 .Where(p => p.StockId == stock.Id)
                 .OrderByDescending(p => p.Date)
-                .FirstOrDefaultAsync(ct);
+                .Take(2)
+                .ToListAsync(ct);
+
+            var price = recentPrices.FirstOrDefault();
+            if (price is not null && price.ChangePct is null && recentPrices.Count >= 2)
+            {
+                var prev = recentPrices[1].Close;
+                if (prev > 0) price.ChangePct = Math.Round((price.Close - prev) / prev * 100, 2);
+            }
 
             var computed = await db.ComputedMetrics
                 .Where(c => c.StockId == stock.Id)
@@ -79,10 +87,18 @@ public static class StocksEndpoints
         var stock = await stockRepo.GetBySymbolAsync(symbol.ToUpper(), ct);
         if (stock is null) return Results.NotFound();
 
-        var price = await db.DailyPrices
+        var recentPrices2 = await db.DailyPrices
             .Where(p => p.StockId == stock.Id)
             .OrderByDescending(p => p.Date)
-            .FirstOrDefaultAsync(ct);
+            .Take(2)
+            .ToListAsync(ct);
+
+        var price = recentPrices2.FirstOrDefault();
+        if (price is not null && price.ChangePct is null && recentPrices2.Count >= 2)
+        {
+            var prev = recentPrices2[1].Close;
+            if (prev > 0) price.ChangePct = Math.Round((price.Close - prev) / prev * 100, 2);
+        }
 
         var computed = await db.ComputedMetrics
             .Where(c => c.StockId == stock.Id)
