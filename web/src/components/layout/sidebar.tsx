@@ -10,10 +10,13 @@ const NAV_ITEMS = [
   { code: '02', href: '/watchlist',  label: 'Watchlist',   group: 'signal' },
   { code: '03', href: '/screener',   label: 'Screener',    group: 'signal' },
   { code: '04', href: '/compare',    label: 'Compare',     group: 'signal' },
-  { code: '05', href: '/dividends',  label: 'Calendar',    group: 'data'   },
-  { code: '06', href: '/portfolio',  label: 'Portfolio',   group: 'data'   },
-  { code: '07', href: '/pipeline',   label: 'Pipeline',    group: 'admin'  },
-  { code: '08', href: '/export',     label: 'Export',      group: 'admin'  },
+  { code: '05', href: '/sector',     label: 'Sectors',     group: 'signal' },
+  { code: '06', href: '/alerts',     label: 'Alerts',      group: 'signal' },
+  { code: '07', href: '/dividends',  label: 'Calendar',    group: 'data'   },
+  { code: '08', href: '/portfolio',  label: 'Portfolio',   group: 'data'   },
+  { code: '09', href: '/stocks',     label: 'Stocks',      group: 'admin'  },
+  { code: '10', href: '/pipeline',   label: 'Pipeline',    group: 'admin'  },
+  { code: '11', href: '/export',     label: 'Export',      group: 'admin'  },
 ];
 
 const GROUP_LABELS: Record<string, string> = {

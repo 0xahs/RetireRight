@@ -28,7 +28,7 @@ public static class DividendsEndpoints
             .Select(d => new UpcomingDividendDto(
                 Symbol: d.Stock!.Symbol,
                 StockName: d.Stock.Name,
-                Sector: d.Stock.Sector.ToString(),
+                Sector: d.Stock.Sector,
                 ExDate: d.ExDate,
                 PaymentDate: d.PaymentDate,
                 Dps: d.Dps,

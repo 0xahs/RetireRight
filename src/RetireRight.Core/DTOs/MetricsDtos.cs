@@ -86,3 +86,19 @@ public record ScoreBreakdown(
     decimal? Safety,
     decimal? Growth,
     decimal? Valuation);
+
+public record ReturnMetrics(
+    decimal? Return1M,
+    decimal? Return6M,
+    decimal? ReturnYtd,
+    decimal? Return1Y,
+    decimal? Return5Y,
+    decimal? Return10Y);
+
+public record CompanyProfileDto(
+    decimal? MarketCapM,
+    decimal? NetCashDebtM,
+    decimal? Employees,
+    decimal? FoundedYear,
+    decimal? Week52Low,
+    decimal? Week52High);

@@ -18,7 +18,7 @@ public static class MemoGenerator
         ComputedMetrics? computed)
     {
         var m = computed?.Metrics ?? new Dictionary<string, decimal?>();
-        var sectorStr = stock.Sector.ToString();
+        var sectorStr = stock.Sector;
         var grammar = SignalGrammar.Derive(m, computed, price?.UpdatedAt, sectorStr);
         var sourceConfidence = MetricsMapper.ComputeSourceConfidence(price?.UpdatedAt);
 
@@ -307,7 +307,7 @@ public static class MemoGenerator
         {
             symbol = stock.Symbol,
             name = stock.Name,
-            sector = stock.Sector.ToString(),
+            sector = stock.Sector,
             asOf = price?.UpdatedAt,
             dataConfidence = MetricsMapper.ComputeSourceConfidence(price?.UpdatedAt),
             price = price?.Close,

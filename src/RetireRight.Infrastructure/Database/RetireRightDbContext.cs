@@ -22,6 +22,7 @@ public class RetireRightDbContext : DbContext
     public DbSet<StockFundamental> StockFundamentals => Set<StockFundamental>();
     public DbSet<StockOwnership> StockOwnerships => Set<StockOwnership>();
     public DbSet<InsiderTransaction> InsiderTransactions => Set<InsiderTransaction>();
+    public DbSet<DataSourceConfig> DataSourceConfigs => Set<DataSourceConfig>();
 
     // Npgsql's EnableDynamicJson() silently drops keys when deserializing JSONB → Dictionary<string, decimal?>.
     // These explicit converters use Newtonsoft.Json for reliable round-trip serialization.
@@ -45,8 +46,8 @@ public class RetireRightDbContext : DbContext
             e.Property(s => s.Id).HasColumnName("id");
             e.Property(s => s.Symbol).HasColumnName("symbol").HasMaxLength(10).IsRequired();
             e.Property(s => s.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
-            e.Property(s => s.Sector).HasColumnName("sector").HasMaxLength(50).HasConversion<string>();
-            e.Property(s => s.Industry).HasColumnName("industry").HasMaxLength(100);
+            e.Property(s => s.Sector).HasColumnName("sector").HasMaxLength(500);
+            e.Property(s => s.Industry).HasColumnName("industry").HasMaxLength(500);
             e.Property(s => s.ListedDate).HasColumnName("listed_date");
             e.Property(s => s.IsActive).HasColumnName("is_active");
             e.Property(s => s.IsWatchlist).HasColumnName("is_watchlist");
@@ -106,7 +107,7 @@ public class RetireRightDbContext : DbContext
             e.Property(d => d.ScrapeRunId).HasColumnName("scrape_run_id");
             e.Property(d => d.CreatedAt).HasColumnName("created_at");
             e.Property(d => d.UpdatedAt).HasColumnName("updated_at");
-            e.HasIndex(d => new { d.StockId, d.ExDate, d.DividendType }).IsUnique();
+            e.HasIndex(d => new { d.StockId, d.ExDate }).IsUnique();
             e.HasOne(d => d.Stock).WithMany().HasForeignKey(d => d.StockId);
             e.HasOne(d => d.ScrapeRun).WithMany().HasForeignKey(d => d.ScrapeRunId).OnDelete(DeleteBehavior.SetNull);
         });
@@ -288,6 +289,30 @@ public class RetireRightDbContext : DbContext
             e.HasIndex(o => new { o.StockId, o.AsOfDate }).IsUnique();
             e.HasOne(o => o.Stock).WithMany().HasForeignKey(o => o.StockId);
             e.HasOne(o => o.ScrapeRun).WithMany().HasForeignKey(o => o.ScrapeRunId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // DataSourceConfig
+        modelBuilder.Entity<DataSourceConfig>(e =>
+        {
+            e.ToTable("data_source_configs");
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).HasColumnName("id");
+            e.Property(c => c.Name).HasColumnName("name").HasMaxLength(50).IsRequired();
+            e.Property(c => c.Type).HasColumnName("type").HasMaxLength(50).IsRequired();
+            e.Property(c => c.Description).HasColumnName("description").HasMaxLength(200);
+            e.Property(c => c.BaseUrl).HasColumnName("base_url").HasMaxLength(200);
+            e.Property(c => c.Enabled).HasColumnName("enabled");
+            e.Property(c => c.MaxRequestsPerMinute).HasColumnName("max_requests_per_minute");
+            e.Property(c => c.MinDelayMs).HasColumnName("min_delay_ms");
+            e.Property(c => c.MaxDelayMs).HasColumnName("max_delay_ms");
+            e.Property(c => c.RetryMaxAttempts).HasColumnName("retry_max_attempts");
+            e.Property(c => c.RetryInitialDelayMs).HasColumnName("retry_initial_delay_ms");
+            e.Property(c => c.RetryBackoffMultiplier).HasColumnName("retry_backoff_multiplier");
+            e.Property(c => c.CredentialEmail).HasColumnName("credential_email").HasMaxLength(200);
+            e.Property(c => c.CredentialPassword).HasColumnName("credential_password").HasMaxLength(500);
+            e.Property(c => c.CreatedAt).HasColumnName("created_at");
+            e.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+            e.HasIndex(c => c.Name).IsUnique();
         });
 
         // InsiderTransaction

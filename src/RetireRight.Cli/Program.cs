@@ -6,11 +6,12 @@ using Microsoft.Extensions.Logging;
 using RetireRight.Cli.Commands;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Interfaces;
+using RetireRight.Core.Models;
 using RetireRight.Export.Exporters;
 using RetireRight.Infrastructure.Database;
 using RetireRight.Infrastructure.Repositories;
+using RetireRight.Scrapers;
 using RetireRight.Scrapers.AntiBot;
-using RetireRight.Scrapers.Sources;
 using Serilog;
 
 // Build configuration
@@ -71,39 +72,11 @@ services.AddScoped<IComputedMetricsRepository, ComputedMetricsRepository>();
 services.AddSingleton<RequestThrottler>();
 services.AddSingleton<RetryPolicy>();
 
-// Scrapers — register each source with its DataSourceOptions
-foreach (var sourceConfig in rrOptions.DataSources.Where(ds => ds.Enabled))
-{
-    switch (sourceConfig.Type.ToLowerInvariant())
-    {
-        case "sarmaaya":
-            services.AddTransient<IScraper>(sp => new SarmaayaScraper(
-                sp.GetRequiredService<ILoggerFactory>().CreateLogger<SarmaayaScraper>(),
-                sp.GetRequiredService<ILoggerFactory>(),
-                sp.GetRequiredService<RequestThrottler>(),
-                sp.GetRequiredService<RetryPolicy>(),
-                sourceConfig,
-                sp.GetRequiredService<IStockRepository>(),
-                sp.GetRequiredService<IPriceRepository>(),
-                sp.GetRequiredService<IDividendRepository>(),
-                sp.GetRequiredService<IRawResponseRepository>(),
-                sp.GetRequiredService<IFundamentalsRepository>(),
-                sp.GetRequiredService<IOwnershipRepository>(),
-                sp.GetRequiredService<IInsiderTransactionRepository>(),
-                sp.GetRequiredService<IIndexLevelRepository>()));
-            break;
+// Repositories (ScraperConfigRepository not in extension — register separately)
+services.AddScoped<IScraperConfigRepository, ScraperConfigRepository>();
 
-        case "stockanalysis":
-            services.AddTransient<IScraper>(sp => new StockAnalysisScraper(
-                sp.GetRequiredService<ILoggerFactory>().CreateLogger<StockAnalysisScraper>(),
-                sp.GetRequiredService<RequestThrottler>(),
-                sp.GetRequiredService<RetryPolicy>(),
-                sourceConfig,
-                sp.GetRequiredService<IStockRepository>(),
-                sp.GetRequiredService<IFundamentalsRepository>()));
-            break;
-    }
-}
+// Scraper factory (DB-driven)
+services.AddScoped<ScraperFactory>();
 
 // Metrics Engine
 services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator, RetireRight.MetricsEngine.Calculators.DividendSafetyCalculator>();
@@ -120,6 +93,18 @@ services.AddSingleton<IExporter, JsonExporter>();
 services.AddSingleton<IExporter>(new BriefingExporter(rrOptions.Export.BriefingMaxLines));
 
 var serviceProvider = services.BuildServiceProvider();
+
+// Seed data_source_configs from appsettings if DB table is empty
+using (var scope = serviceProvider.CreateScope())
+{
+    var configRepo = scope.ServiceProvider.GetRequiredService<IScraperConfigRepository>();
+    if (await configRepo.CountAsync() == 0 && rrOptions.DataSources.Count > 0)
+    {
+        foreach (var ds in rrOptions.DataSources)
+            await configRepo.UpsertAsync(DataSourceConfig.FromOptions(ds));
+        Log.Information("Seeded {Count} scraper configs from appsettings", rrOptions.DataSources.Count);
+    }
+}
 
 // Build CLI
 var rootCommand = new RootCommand { Description = "RetireRight — PSX data pipeline for dividend investors" };

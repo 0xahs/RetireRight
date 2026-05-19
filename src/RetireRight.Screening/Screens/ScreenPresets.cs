@@ -15,7 +15,7 @@ public static class ScreenPresets
                 ["a1_earnings_payout_ratio"] = (null, 0.80m),     // Payout under 80%
                 ["a4_dividend_coverage"] = (1.2m, null),           // Coverage > 1.2x
                 ["a6_interest_coverage"] = (2.0m, null),           // Interest cover > 2x
-                // a12_consecutive_div_years omitted — Sarmaaya only returns 2Y history
+                ["a12_consecutive_div_years"] = (3m, null),        // 3+ consecutive years
             },
 
             "high_yield" => new()
@@ -27,7 +27,7 @@ public static class ScreenPresets
 
             "growth" => new()
             {
-                // b3_dps_cagr_5y omitted — requires 5Y dividend history; only 2Y available from Sarmaaya
+                ["b3_dps_cagr_5y"] = (5.0m, null),                // DPS growing 5%+ per year
                 ["b7_eps_growth_1y"] = (0, null),                  // Positive EPS growth
                 ["c12_roe"] = (12, null),                          // ROE > 12%
             },
@@ -43,9 +43,9 @@ public static class ScreenPresets
             {
                 // Ahmad's ideal: safe, growing, reasonably priced dividend payers
                 ["a1_earnings_payout_ratio"] = (0.15m, 0.75m),    // 15-75% payout
-                // a12_consecutive_div_years omitted — Sarmaaya only returns 2Y history
+                ["a12_consecutive_div_years"] = (3m, null),        // 3+ consecutive years
                 ["c9_dividend_yield"] = (3.0m, null),              // 3%+ yield
-                // b3_dps_cagr_5y omitted — requires 5Y dividend history; only 2Y available
+                ["b3_dps_cagr_5y"] = (3.0m, null),                // DPS growing 3%+ per year
                 ["c1_pe_ratio"] = (0.01m, 20m),                   // Not wildly expensive
                 ["f2_annual_volatility"] = (null, 50m),            // Not too volatile
             },

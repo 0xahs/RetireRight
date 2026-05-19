@@ -105,7 +105,7 @@ public static class ExportCommand
             {
                 Symbol = stock.Symbol,
                 Name = stock.Name,
-                Sector = stock.Sector.ToString(),
+                Sector = stock.Sector,
                 Price = price?.Close,
                 ChangePct = price?.ChangePct,
                 Volume = price?.Volume,

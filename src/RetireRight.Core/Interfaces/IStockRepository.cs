@@ -8,6 +8,7 @@ public interface IStockRepository
     Task<IReadOnlyList<Stock>> GetWatchlistAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Stock>> GetAllActiveAsync(CancellationToken ct = default);
     Task<Stock> UpsertAsync(Stock stock, CancellationToken ct = default);
+    Task<bool> SetWatchlistAsync(string symbol, bool isWatchlist, CancellationToken ct = default);
 }
 
 public interface IPriceRepository

@@ -1,10 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Area, AreaChart, CartesianGrid, ResponsiveContainer,
-  Tooltip, XAxis, YAxis,
-} from 'recharts';
+  createChart,
+  CandlestickSeries,
+  HistogramSeries,
+  LineSeries,
+  CrosshairMode,
+  LineStyle,
+} from 'lightweight-charts';
 import { cn } from '@/lib/utils';
 import type { PricePointDto } from '@/lib/api/types';
 
@@ -24,56 +28,239 @@ interface PriceChartProps {
 }
 
 export function PriceChart({ data, symbol }: PriceChartProps) {
-  const [period, setPeriod] = useState<Period>('1Y');
+  const chartRef   = useRef<HTMLDivElement>(null);
+  const volumeRef  = useRef<HTMLDivElement>(null);
+  const [period, setPeriod]   = useState<Period>('1Y');
+  const [tooltip, setTooltip] = useState<{ date: string; open: number; high: number; low: number; close: number; changePct: number | null; volume: number | null } | null>(null);
 
-  const chartData = useMemo(() => {
+  const filtered = useMemo(() => {
     const sorted = [...data].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const days = PERIODS.find((p) => p.label === period)?.days ?? 365;
+    const days   = PERIODS.find(p => p.label === period)?.days ?? 365;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    return sorted
-      .filter((p) => new Date(String(p.date)) >= cutoff)
-      .map((p) => ({ date: String(p.date), close: Number(p.close), volume: p.volume }));
+    return sorted.filter(p => new Date(String(p.date)) >= cutoff);
   }, [data, period]);
 
-  const prices = chartData.map((d) => d.close);
-  const minPrice = prices.length ? Math.min(...prices) * 0.985 : 0;
-  const maxPrice = prices.length ? Math.max(...prices) * 1.015 : 100;
-  const first = chartData[0]?.close ?? 0;
-  const last = chartData[chartData.length - 1]?.close ?? 0;
-  const isUp = last >= first;
-  const changePct = first > 0 ? ((last - first) / first) * 100 : 0;
-  const lineColor = isUp ? '#10b981' : '#ef4444';
+  const hasOhlc = filtered.some(p => p.open != null && p.high != null && p.low != null);
+
+  // Summary stats for header
+  const first = filtered[0]?.close ?? 0;
+  const last  = filtered[filtered.length - 1]?.close ?? 0;
+  const periodChangePct = first > 0 ? ((last - first) / first) * 100 : 0;
+  const isUp  = periodChangePct >= 0;
+
+  useEffect(() => {
+    const container = chartRef.current;
+    if (!container || filtered.length === 0) return;
+
+    const FONT = "'JetBrains Mono', 'Fira Code', monospace";
+    const GRID  = 'rgba(255,255,255,0.04)';
+    const TEXT  = 'rgba(255,255,255,0.35)';
+    const BORDER = 'rgba(255,255,255,0.08)';
+
+    // ── Main price chart ─────────────────────────────────────
+    const chart = createChart(container, {
+      layout: {
+        background: { color: 'transparent' },
+        textColor: TEXT,
+        fontFamily: FONT,
+        fontSize: 10,
+      },
+      grid: {
+        vertLines: { color: GRID, style: LineStyle.Solid },
+        horzLines: { color: GRID, style: LineStyle.Solid },
+      },
+      rightPriceScale: {
+        borderColor: BORDER,
+        scaleMargins: { top: 0.08, bottom: 0.08 },
+      },
+      timeScale: {
+        borderColor: BORDER,
+        timeVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: 'rgba(255,255,255,0.2)', style: LineStyle.Dashed, labelBackgroundColor: '#1a1a1a' },
+        horzLine: { color: 'rgba(255,255,255,0.2)', style: LineStyle.Dashed, labelBackgroundColor: '#1a1a1a' },
+      },
+      handleScroll: true,
+      handleScale: true,
+    });
+
+    // ── Series ───────────────────────────────────────────────
+    let priceSeries: ReturnType<typeof chart.addSeries<'Candlestick'>> | ReturnType<typeof chart.addSeries<'Line'>>;
+
+    if (hasOhlc) {
+      priceSeries = chart.addSeries(CandlestickSeries, {
+        upColor:        '#10b981',
+        downColor:      '#ef4444',
+        borderUpColor:  '#10b981',
+        borderDownColor:'#ef4444',
+        wickUpColor:    '#10b981',
+        wickDownColor:  '#ef4444',
+      });
+      priceSeries.setData(
+        filtered.map(p => ({
+          time:  String(p.date) as import('lightweight-charts').Time,
+          open:  p.open  ?? p.close,
+          high:  p.high  ?? p.close,
+          low:   p.low   ?? p.close,
+          close: p.close,
+        }))
+      );
+    } else {
+      priceSeries = chart.addSeries(LineSeries, {
+        color:     '#10b981',
+        lineWidth: 1,
+        priceLineVisible: false,
+      });
+      priceSeries.setData(
+        filtered.map(p => ({
+          time:  String(p.date) as import('lightweight-charts').Time,
+          value: p.close,
+        }))
+      );
+    }
+
+    // ── Crosshair tooltip ────────────────────────────────────
+    chart.subscribeCrosshairMove(param => {
+      if (!param.time || !param.seriesData.size) {
+        setTooltip(null);
+        return;
+      }
+      const raw = param.seriesData.get(priceSeries);
+      if (!raw) return;
+
+      const dateStr = String(param.time);
+      const match   = filtered.find(p => String(p.date) === dateStr);
+
+      if (hasOhlc && 'open' in raw) {
+        setTooltip({
+          date: dateStr,
+          open: (raw as { open: number }).open,
+          high: (raw as { high: number }).high,
+          low:  (raw as { low: number }).low,
+          close:(raw as { close: number }).close,
+          changePct: match?.changePct ?? null,
+          volume:    match?.volume ?? null,
+        });
+      } else if ('value' in raw) {
+        const val = (raw as { value: number }).value;
+        setTooltip({
+          date: dateStr, open: val, high: val, low: val, close: val,
+          changePct: match?.changePct ?? null,
+          volume:    match?.volume ?? null,
+        });
+      }
+    });
+
+    // ── Volume pane ──────────────────────────────────────────
+    let volumeChart: ReturnType<typeof createChart> | null = null;
+    const hasVolume = filtered.some(p => p.volume != null && p.volume > 0);
+    if (hasVolume && volumeRef.current) {
+      volumeChart = createChart(volumeRef.current, {
+        layout: { background: { color: 'transparent' }, textColor: TEXT, fontFamily: FONT, fontSize: 10 },
+        grid: { vertLines: { color: 'transparent' }, horzLines: { color: 'transparent' } },
+        rightPriceScale: { borderColor: BORDER, scaleMargins: { top: 0.1, bottom: 0 } },
+        timeScale: { borderColor: BORDER, visible: false },
+        crosshair: { mode: CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', style: LineStyle.Dashed, labelVisible: false }, horzLine: { visible: false, labelVisible: false } },
+        handleScroll: false,
+        handleScale:  false,
+      });
+
+      const volSeries = volumeChart.addSeries(HistogramSeries, {
+        priceFormat: { type: 'volume' },
+        priceScaleId: 'vol',
+      });
+      volumeChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+
+      volSeries.setData(
+        filtered
+          .filter(p => p.volume != null)
+          .map(p => {
+            const prev = filtered[filtered.indexOf(p) - 1];
+            const up   = prev ? p.close >= prev.close : true;
+            return {
+              time:  String(p.date) as import('lightweight-charts').Time,
+              value: p.volume!,
+              color: up ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
+            };
+          })
+      );
+
+      // Sync time ranges
+      chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (range && volumeChart) volumeChart.timeScale().setVisibleLogicalRange(range);
+      });
+    }
+
+    chart.timeScale().fitContent();
+
+    // ── Resize observer ──────────────────────────────────────
+    const ro = new ResizeObserver(() => {
+      if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth });
+      if (volumeRef.current && volumeChart) volumeChart.applyOptions({ width: volumeRef.current.clientWidth });
+    });
+    if (chartRef.current)  ro.observe(chartRef.current);
+    if (volumeRef.current) ro.observe(volumeRef.current);
+
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      volumeChart?.remove();
+      setTooltip(null);
+    };
+  }, [filtered, hasOhlc]);
 
   if (!data.length) {
     return (
-      <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
-        No price history available
+      <div className="h-[200px] flex items-center justify-center text-[11px] uppercase tracking-[0.18em] text-warm-dim font-bold">
+        NO PRICE HISTORY
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="num text-xs text-muted-foreground">{symbol} — {period} performance</span>
-          <span className={cn('num text-xs font-semibold', isUp ? 'text-emerald-500' : 'text-red-500')}>
-            {isUp ? '+' : ''}{changePct.toFixed(2)}%
+    <div className="space-y-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-1 pb-2">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-[0.15em] text-warm-dim font-bold num">
+            {symbol}
           </span>
+          {tooltip ? (
+            <span className="text-[10px] num text-warm-muted">
+              O <span className="text-foreground font-bold">{tooltip.open.toFixed(2)}</span>
+              {'  '}H <span className="text-cyan-pos font-bold">{tooltip.high.toFixed(2)}</span>
+              {'  '}L <span className="text-warn font-bold">{tooltip.low.toFixed(2)}</span>
+              {'  '}C <span className="text-foreground font-bold">{tooltip.close.toFixed(2)}</span>
+              {tooltip.changePct != null && (
+                <>
+                  {'  '}
+                  <span className={tooltip.changePct >= 0 ? 'text-cyan-pos font-bold' : 'text-warn font-bold'}>
+                    {tooltip.changePct >= 0 ? '+' : ''}{tooltip.changePct.toFixed(2)}%
+                  </span>
+                </>
+              )}
+            </span>
+          ) : (
+            <span className={cn('num text-[11px] font-bold', isUp ? 'text-cyan-pos' : 'text-warn')}>
+              {isUp ? '+' : ''}{periodChangePct.toFixed(2)}%
+            </span>
+          )}
         </div>
-        {/* Period buttons */}
         <div className="flex items-center gap-0.5">
-          {PERIODS.map((p) => (
+          {PERIODS.map(p => (
             <button
               key={p.label}
               onClick={() => setPeriod(p.label)}
               className={cn(
-                'px-2 py-1 text-[11px] font-medium rounded-sm transition-colors cursor-pointer',
+                'px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] rounded-sm transition-colors cursor-pointer',
                 period === p.label
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30',
+                  ? 'bg-amber/10 text-amber'
+                  : 'text-warm-dim hover:text-foreground hover:bg-white/[0.04]',
               )}
             >
               {p.label}
@@ -82,90 +269,26 @@ export function PriceChart({ data, symbol }: PriceChartProps) {
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="h-[190px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id={`price-grad-${symbol}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stopColor={lineColor} stopOpacity={0.18} />
-                <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              strokeDasharray="4 4"
-              stroke="oklch(1 0 0 / 6%)"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 10, fill: 'oklch(0.50 0 0)', fontFamily: 'var(--font-mono)' }}
-              tickFormatter={(v: string) =>
-                new Date(v).toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })
-              }
-              minTickGap={55}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              domain={[minPrice, maxPrice]}
-              tickLine={false}
-              axisLine={false}
-              orientation="right"
-              width={58}
-              tick={{ fontSize: 10, fill: 'oklch(0.50 0 0)', fontFamily: 'var(--font-mono)' }}
-              tickFormatter={(v: number) => `${Math.round(v).toLocaleString('en-PK')}`}
-            />
-            <Tooltip
-              content={<PriceTooltip />}
-              cursor={{ stroke: lineColor, strokeWidth: 1, strokeDasharray: '3 3' }}
-            />
-            <Area
-              type="monotone"
-              dataKey="close"
-              stroke={lineColor}
-              strokeWidth={1.5}
-              fill={`url(#price-grad-${symbol})`}
-              dot={false}
-              activeDot={{ r: 3, fill: lineColor, strokeWidth: 0 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Price chart */}
+      <div ref={chartRef} className="w-full" style={{ height: 280 }} />
 
-      {/* Bottom stats */}
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground/50 px-0.5">
-        <span className="num">{chartData.length} trading days</span>
-        <span className="num">
-          Range: {Math.min(...prices).toLocaleString('en-PK')} – {Math.max(...prices).toLocaleString('en-PK')}
+      {/* Volume pane */}
+      <div ref={volumeRef} className="w-full" style={{ height: 52 }} />
+
+      {/* Footer */}
+      <div className="flex justify-between items-center pt-1 px-1">
+        <span className="text-[9px] uppercase tracking-[0.15em] text-warm-dim font-bold num">
+          {filtered.length} SESSIONS · {hasOhlc ? 'CANDLESTICK' : 'LINE'}
         </span>
+        <a
+          href={`https://www.tradingview.com/chart/?symbol=PSX%3A${symbol}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[9px] uppercase tracking-[0.15em] text-warm-dim font-bold hover:text-amber transition-colors"
+        >
+          TRADINGVIEW ↗
+        </a>
       </div>
-    </div>
-  );
-}
-
-function PriceTooltip({ active, payload, label }: {
-  active?: boolean;
-  payload?: Array<{ value: number; payload: { volume: number | null } }>;
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  const close = payload[0]?.value;
-  const volume = payload[0]?.payload?.volume;
-  const date = label ? new Date(label).toLocaleDateString('en-PK', {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-  }) : '';
-
-  return (
-    <div className="bg-card border border-border/50 rounded-sm px-3 py-2 shadow-lg text-[11px]">
-      <div className="text-muted-foreground mb-1.5">{date}</div>
-      <div className="num font-semibold text-[13px]">Rs. {close?.toLocaleString('en-PK')}</div>
-      {volume != null && (
-        <div className="num text-muted-foreground mt-1">
-          Vol: {(Number(volume) / 1000).toFixed(0)}K
-        </div>
-      )}
     </div>
   );
 }

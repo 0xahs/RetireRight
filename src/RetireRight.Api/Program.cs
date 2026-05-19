@@ -4,10 +4,11 @@ using RetireRight.Api.Jobs;
 using RetireRight.Api.Services;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Interfaces;
+using RetireRight.Core.Models;
 using RetireRight.Export.Exporters;
 using RetireRight.Infrastructure.Extensions;
+using RetireRight.Scrapers;
 using RetireRight.Scrapers.AntiBot;
-using RetireRight.Scrapers.Sources;
 using RetireRight.Screening;
 using RetireRight.Screening.Screens;
 using Serilog;
@@ -50,48 +51,8 @@ try
     builder.Services.AddSingleton<RequestThrottler>();
     builder.Services.AddSingleton<RetryPolicy>();
 
-    // ── Scrapers ───────────────────────────────────────────────────────────────
-    foreach (var sourceConfig in rrOptions.DataSources.Where(ds => ds.Enabled))
-    {
-        switch (sourceConfig.Type.ToLowerInvariant())
-        {
-            case "sarmaaya":
-                builder.Services.AddTransient<IScraper>(sp => new SarmaayaScraper(
-                    sp.GetRequiredService<ILoggerFactory>().CreateLogger<SarmaayaScraper>(),
-                    sp.GetRequiredService<ILoggerFactory>(),
-                    sp.GetRequiredService<RequestThrottler>(),
-                    sp.GetRequiredService<RetryPolicy>(),
-                    sourceConfig,
-                    sp.GetRequiredService<IStockRepository>(),
-                    sp.GetRequiredService<IPriceRepository>(),
-                    sp.GetRequiredService<IDividendRepository>(),
-                    sp.GetRequiredService<IRawResponseRepository>(),
-                    sp.GetRequiredService<IFundamentalsRepository>(),
-                    sp.GetRequiredService<IOwnershipRepository>(),
-                    sp.GetRequiredService<IInsiderTransactionRepository>(),
-                    sp.GetRequiredService<IIndexLevelRepository>()));
-                break;
-
-            case "stockanalysis":
-                builder.Services.AddTransient<IScraper>(sp => new StockAnalysisScraper(
-                    sp.GetRequiredService<ILoggerFactory>().CreateLogger<StockAnalysisScraper>(),
-                    sp.GetRequiredService<RequestThrottler>(),
-                    sp.GetRequiredService<RetryPolicy>(),
-                    sourceConfig,
-                    sp.GetRequiredService<IStockRepository>(),
-                    sp.GetRequiredService<IFundamentalsRepository>()));
-                break;
-
-            case "macro":
-                builder.Services.AddTransient<IScraper>(sp => new MacroScraper(
-                    sp.GetRequiredService<ILoggerFactory>().CreateLogger<MacroScraper>(),
-                    sp.GetRequiredService<RequestThrottler>(),
-                    sp.GetRequiredService<RetryPolicy>(),
-                    sourceConfig,
-                    sp.GetRequiredService<IMacroRepository>()));
-                break;
-        }
-    }
+    // ── Scraper factory (DB-driven, replaces hardcoded IScraper registrations) ─
+    builder.Services.AddScoped<ScraperFactory>();
 
     // ── Metrics Engine ─────────────────────────────────────────────────────────
     builder.Services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator,
@@ -146,10 +107,40 @@ try
 
     var app = builder.Build();
 
-    // ── Startup: mark orphaned scrape runs as failed ───────────────────────────
+    // ── Startup: seed DB config + mark orphaned runs as failed ───────────────
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<RetireRight.Infrastructure.Database.RetireRightDbContext>();
+
+        // Seed data_source_configs from appsettings if table is empty
+        var configRepo = scope.ServiceProvider.GetRequiredService<IScraperConfigRepository>();
+        if (await configRepo.CountAsync() == 0 && rrOptions.DataSources.Count > 0)
+        {
+            foreach (var ds in rrOptions.DataSources)
+                await configRepo.UpsertAsync(DataSourceConfig.FromOptions(ds));
+            Log.Information("Seeded {Count} scraper configs from appsettings", rrOptions.DataSources.Count);
+        }
+
+        // Ensure PsxUniverse scraper config exists (added after initial seed)
+        if (await configRepo.GetByNameAsync("PsxUniverse") is null)
+        {
+            await configRepo.UpsertAsync(new DataSourceConfig
+            {
+                Name = "PsxUniverse",
+                Type = "PsxUniverse",
+                Description = "Full PSX stock universe from StockAnalysis listing page",
+                BaseUrl = "https://stockanalysis.com/list/pakistan-stock-exchange/",
+                Enabled = true,
+                MaxRequestsPerMinute = 2,
+                MinDelayMs = 5000,
+                MaxDelayMs = 8000,
+                RetryMaxAttempts = 2,
+                RetryInitialDelayMs = 3000,
+                RetryBackoffMultiplier = 2.0,
+            });
+            Log.Information("Seeded PsxUniverse scraper config");
+        }
+
         var orphaned = db.ScrapeRuns.Where(r => r.Status == "running").ToList();
         foreach (var run in orphaned)
         {
@@ -174,11 +165,13 @@ try
 
     // ── Endpoints ─────────────────────────────────────────────────────────────
     app.MapStocksEndpoints();
+    app.MapSectorsEndpoints();
     app.MapScreenerEndpoints();
     app.MapDividendsEndpoints();
     app.MapMacroEndpoints();
     app.MapPortfolioEndpoints();
     app.MapPipelineEndpoints();
+    app.MapScraperConfigEndpoints();
     app.MapExportEndpoints();
 
     // Health check

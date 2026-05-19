@@ -33,7 +33,9 @@ public record StockDetailDto(
     StockSummaryDto Summary,
     StockMetricsDto Metrics,
     DividendSummaryDto[] RecentDividends,
-    PricePointDto[] PriceHistory);
+    PricePointDto[] PriceHistory,
+    ReturnMetrics? Returns,
+    CompanyProfileDto? Profile);
 
 public record PricePointDto(
     DateOnly Date,
@@ -43,6 +45,16 @@ public record PricePointDto(
     decimal Close,
     long? Volume,
     decimal? ChangePct);
+
+public record StockListItemDto(
+    int Id,
+    string Symbol,
+    string Name,
+    string Sector,
+    bool IsWatchlist,
+    bool IsActive);
+
+public record WatchlistPatchRequest(bool IsWatchlist);
 
 public record SignalHistoryDto(
     string Symbol,

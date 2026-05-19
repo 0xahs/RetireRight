@@ -1,9 +1,9 @@
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using RetireRight.Core.Enums;
 using RetireRight.Core.Interfaces;
 using RetireRight.Core.Models;
+using RetireRight.Scrapers;
 
 namespace RetireRight.Cli.Commands;
 
@@ -12,7 +12,7 @@ public static class RunCommand
     public static Command Create(IServiceProvider services)
     {
         var allOption = new Option<bool>("--all") { Description = "Run all enabled scrapers" };
-        var sourceOption = new Option<string?>("--source") { Description = "Run a specific source (e.g., Sarmaaya, PsxOfficial)" };
+        var sourceOption = new Option<string?>("--source") { Description = "Run a specific source (e.g., Sarmaaya, PsxTerminal)" };
         var symbolsOption = new Option<string[]>("--symbols")
         {
             Description = "Specific symbols to scrape",
@@ -34,31 +34,23 @@ public static class RunCommand
             var isTest = parseResult.GetValue(testOption);
 
             await using var scope = services.CreateAsyncScope();
-            var scrapers = scope.ServiceProvider.GetServices<IScraper>().ToList();
+            var factory = scope.ServiceProvider.GetRequiredService<ScraperFactory>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
             var scrapeRunRepo = scope.ServiceProvider.GetRequiredService<IScrapeRunRepository>();
 
-            var targets = scrapers.AsEnumerable();
+            var scrapers = await factory.CreateEnabledAsync(all ? null : source, ct);
 
-            if (!all && source is not null)
+            if (!all && source is null)
             {
-                if (Enum.TryParse<DataSourceType>(source, true, out var srcType))
-                    targets = scrapers.Where(s => s.Source == srcType);
-                else
-                {
-                    logger.LogError("Unknown source: {Source}. Available: {Available}",
-                        source, string.Join(", ", scrapers.Select(s => s.Source)));
-                    return;
-                }
+                logger.LogError("Specify --all to run all scrapers or --source <name> for a specific one");
+                return;
             }
 
-            var targetList = targets.ToList();
             logger.LogInformation("Running {Count} scraper(s) in {Mode} mode...",
-                targetList.Count, isTest ? "TEST" : "LIVE");
+                scrapers.Count, isTest ? "TEST" : "LIVE");
 
-            foreach (var scraper in targetList)
+            foreach (var scraper in scrapers)
             {
-                // Create scrape run record
                 var run = await scrapeRunRepo.CreateAsync(new ScrapeRun
                 {
                     Source = scraper.Source.ToString(),
@@ -76,7 +68,6 @@ public static class RunCommand
                 {
                     var result = await scraper.ScrapeAsync(request, ct);
 
-                    // Update scrape run with results
                     run.CompletedAt = DateTime.UtcNow;
                     run.RecordsScraped = result.RecordsScraped;
                     run.RecordsFailed = result.RecordsFailed;
@@ -84,9 +75,9 @@ public static class RunCommand
                     await scrapeRunRepo.UpdateAsync(run, ct);
 
                     var status = result.Success ? "OK" : "FAILED";
-                    logger.LogInformation("[{Status}] {Source}: {Scraped} scraped, {Failed} failed in {Duration}ms (run: {RunId})",
+                    logger.LogInformation("[{Status}] {Source}: {Scraped} scraped, {Failed} failed in {Duration}ms",
                         status, result.Source, result.RecordsScraped, result.RecordsFailed,
-                        result.Duration.TotalMilliseconds, run.Id);
+                        result.Duration.TotalMilliseconds);
 
                     foreach (var error in result.Errors)
                         logger.LogWarning("  Error: {Error}", error);
@@ -96,7 +87,7 @@ public static class RunCommand
                     run.CompletedAt = DateTime.UtcNow;
                     run.Status = "failed";
                     await scrapeRunRepo.UpdateAsync(run, ct);
-                    logger.LogError(ex, "Scraper {Source} failed (run: {RunId})", scraper.Source, run.Id);
+                    logger.LogError(ex, "Scraper {Source} failed", scraper.Source);
                 }
                 finally
                 {

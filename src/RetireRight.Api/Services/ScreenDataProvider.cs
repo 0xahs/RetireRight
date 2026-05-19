@@ -18,7 +18,7 @@ public class ScreenDataProvider : IScreenDataProvider
     {
         var stockQuery = _db.Stocks.Where(s => s.IsActive);
         if (watchlistOnly) stockQuery = stockQuery.Where(s => s.IsWatchlist);
-        if (sectors is { Length: > 0 }) stockQuery = stockQuery.Where(s => sectors.Contains(s.Sector.ToString()));
+        if (sectors is { Length: > 0 }) stockQuery = stockQuery.Where(s => sectors.Contains(s.Sector));
 
         var stocks = await stockQuery.ToListAsync(ct);
         var result = new List<ScreenableStock>();
@@ -40,7 +40,7 @@ public class ScreenDataProvider : IScreenDataProvider
             {
                 Symbol = stock.Symbol,
                 Name = stock.Name,
-                Sector = stock.Sector.ToString(),
+                Sector = stock.Sector,
                 Price = price > 0 ? price : null,
                 CompositeScore = computed?.CompositeScore,
                 Signal = computed?.Signal?.ToString(),

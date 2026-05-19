@@ -17,6 +17,14 @@ public static class StocksEndpoints
             .WithName("GetWatchlist")
             .WithSummary("Get all watchlist stocks with latest price and metrics");
 
+        group.MapGet("/all", GetAllStocksAsync)
+            .WithName("GetAllStocks")
+            .WithSummary("Get all active stocks (lightweight — for configuration)");
+
+        group.MapPatch("/{symbol}/watchlist", PatchWatchlistAsync)
+            .WithName("PatchWatchlist")
+            .WithSummary("Add or remove a stock from the watchlist");
+
         group.MapGet("/{symbol}", GetStockDetailAsync)
             .WithName("GetStockDetail")
             .WithSummary("Get full stock detail with metrics, dividends, and price history");
@@ -40,6 +48,26 @@ public static class StocksEndpoints
         group.MapGet("/{symbol}/memo", GetStockMemoAsync)
             .WithName("GetStockMemo")
             .WithSummary("Generate a per-stock investment memo with metric citations");
+    }
+
+    private static async Task<IResult> GetAllStocksAsync(
+        IStockRepository stockRepo,
+        CancellationToken ct)
+    {
+        var stocks = await stockRepo.GetAllActiveAsync(ct);
+        var result = stocks.Select(s => new StockListItemDto(
+            s.Id, s.Symbol, s.Name, s.Sector, s.IsWatchlist, s.IsActive)).ToArray();
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> PatchWatchlistAsync(
+        string symbol,
+        WatchlistPatchRequest req,
+        IStockRepository stockRepo,
+        CancellationToken ct)
+    {
+        var found = await stockRepo.SetWatchlistAsync(symbol.ToUpper(), req.IsWatchlist, ct);
+        return found ? Results.NoContent() : Results.NotFound();
     }
 
     private static async Task<IResult> GetWatchlistAsync(
@@ -82,6 +110,7 @@ public static class StocksEndpoints
         IStockRepository stockRepo,
         IPriceRepository priceRepo,
         IDividendRepository dividendRepo,
+        IFundamentalsRepository fundamentalsRepo,
         CancellationToken ct)
     {
         var stock = await stockRepo.GetBySymbolAsync(symbol.ToUpper(), ct);
@@ -130,7 +159,29 @@ public static class StocksEndpoints
             .Select(p => new PricePointDto(p.Date, p.Open, p.High, p.Low, p.Close, p.Volume, p.ChangePct))
             .ToArray();
 
-        return Results.Ok(new StockDetailDto(summary, metrics, recentDividends, pricePoints));
+        var fundamentals = await fundamentalsRepo.GetLatestAsync(stock.Id, "TTM", ct);
+        var fd = fundamentals?.Data ?? new Dictionary<string, decimal?>();
+        var r1m  = fd.GetValueOrDefault("total_return_1m");
+        var r6m  = fd.GetValueOrDefault("total_return_6m");
+        var rYtd = fd.GetValueOrDefault("total_return_ytd");
+        var r1y  = fd.GetValueOrDefault("total_return_1y");
+        var r5y  = fd.GetValueOrDefault("total_return_5y");
+        var r10y = fd.GetValueOrDefault("total_return_10y");
+        var returns = (r1m ?? r6m ?? rYtd ?? r1y ?? r5y ?? r10y) is not null
+            ? new ReturnMetrics(r1m, r6m, rYtd, r1y, r5y, r10y)
+            : null;
+
+        var mcap      = fd.GetValueOrDefault("market_cap");
+        var netCash   = fd.GetValueOrDefault("net_cash_debt");
+        var employees = fd.GetValueOrDefault("employees");
+        var founded   = fd.GetValueOrDefault("founded_year");
+        var w52Low    = fd.GetValueOrDefault("w52_low");
+        var w52High   = fd.GetValueOrDefault("w52_high");
+        var profile   = (mcap ?? netCash ?? employees ?? founded ?? w52Low ?? w52High) is not null
+            ? new CompanyProfileDto(mcap, netCash, employees, founded, w52Low, w52High)
+            : null;
+
+        return Results.Ok(new StockDetailDto(summary, metrics, recentDividends, pricePoints, returns, profile));
     }
 
     private static async Task<IResult> GetStockMetricsAsync(
@@ -236,7 +287,7 @@ public static class StocksEndpoints
             .OrderBy(c => c.ComputedDate)
             .ToListAsync(ct);
 
-        var sectorStr = stock.Sector.ToString();
+        var sectorStr = stock.Sector;
         var points = rows.Select(c =>
         {
             var grammar = SignalGrammar.Derive(
@@ -268,7 +319,7 @@ public static class StocksEndpoints
         var flags = RetireRight.MetricsEngine.OpportunityScorer
             .DecodeFlags(m.GetValueOrDefault("o7_flags")).ToArray();
 
-        var sectorStr = stock.Sector.ToString();
+        var sectorStr = stock.Sector;
         var grammar = SignalGrammar.Derive(m, computed, price?.UpdatedAt, sectorStr);
 
         return new StockSummaryDto(

@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIndexLevelRepository, IndexLevelRepository>();
         services.AddScoped<IComputedMetricsRepository, ComputedMetricsRepository>();
         services.AddScoped<IPortfolioRepository, PortfolioRepository>();
+        services.AddScoped<IScraperConfigRepository, ScraperConfigRepository>();
 
         return services;
     }

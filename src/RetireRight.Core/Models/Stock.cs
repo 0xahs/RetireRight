@@ -1,5 +1,3 @@
-using RetireRight.Core.Enums;
-
 namespace RetireRight.Core.Models;
 
 public class Stock
@@ -7,7 +5,7 @@ public class Stock
     public int Id { get; set; }
     public required string Symbol { get; set; }
     public required string Name { get; set; }
-    public Sector Sector { get; set; }
+    public string Sector { get; set; } = "Other";
     public string? Industry { get; set; }
     public DateOnly? ListedDate { get; set; }
     public string? Isin { get; set; }

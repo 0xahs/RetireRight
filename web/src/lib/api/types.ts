@@ -4,6 +4,15 @@ export type Verdict = 'ACCUMULATE' | 'HOLD' | 'REVIEW' | 'AVOID' | 'WATCH';
 export type ConvictionLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 export type SafetyTier = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
 
+export interface StockListItemDto {
+  id: number;
+  symbol: string;
+  name: string;
+  sector: string;
+  isWatchlist: boolean;
+  isActive: boolean;
+}
+
 export interface StockSummaryDto {
   id: number;
   symbol: string;
@@ -34,11 +43,31 @@ export interface StockSummaryDto {
   metricsTotal: number;
 }
 
+export interface ReturnMetrics {
+  return1M: number | null;
+  return6M: number | null;
+  returnYtd: number | null;
+  return1Y: number | null;
+  return5Y: number | null;
+  return10Y: number | null;
+}
+
+export interface CompanyProfileDto {
+  marketCapM: number | null;
+  netCashDebtM: number | null;
+  employees: number | null;
+  foundedYear: number | null;
+  week52Low: number | null;
+  week52High: number | null;
+}
+
 export interface StockDetailDto {
   summary: StockSummaryDto;
   metrics: StockMetricsDto;
   recentDividends: DividendSummaryDto[];
   priceHistory: PricePointDto[];
+  returns: ReturnMetrics | null;
+  profile: CompanyProfileDto | null;
 }
 
 export interface PricePointDto {
@@ -154,11 +183,13 @@ export interface DividendSafetyMetrics {
 }
 
 export interface DividendGrowthMetrics {
-  dividendCagr3y: number | null;
-  dividendCagr5y: number | null;
-  earningsCagr3y: number | null;
-  dividendPerShare: number | null;
-  growthConsistency: number | null;
+  dpsYoyGrowth: number | null;
+  dpsCagr3y: number | null;
+  dpsCagr5y: number | null;
+  epsGrowth1y: number | null;
+  revenueGrowth1y: number | null;
+  bookValueGrowth: number | null;
+  roeTrend: number | null;
 }
 
 export interface ValuationMetrics {
@@ -173,9 +204,12 @@ export interface ValuationMetrics {
 export interface RiskMetrics {
   beta: number | null;
   rsi14: number | null;
-  volatility30d: number | null;
-  drawdownFrom52wHigh: number | null;
-  rangePosition52w: number | null;
+  volatility1y: number | null;
+  maxDrawdown: number | null;
+  priceVs50dma: number | null;
+  priceVs200dma: number | null;
+  currentRatio: number | null;
+  quickRatio: number | null;
 }
 
 export interface BankingMetrics {
@@ -229,6 +263,29 @@ export interface UpcomingDividendDto {
   lastBuyDate: string;
   daysUntilEx: number;
   paymentDate: string | null;
+}
+
+// ── Sectors ───────────────────────────────────────────────────────────────────
+
+export interface SectorTopPickDto {
+  symbol: string;
+  name: string;
+  price: number | null;
+  compositeScore: number | null;
+  dividendYield: number | null;
+  verdict: Verdict;
+  convictionLevel: ConvictionLevel;
+  safetyTier: SafetyTier;
+}
+
+export interface SectorSummaryDto {
+  sector: string;
+  stockCount: number;
+  avgCompositeScore: number | null;
+  avgDividendYield: number | null;
+  avgPeRatio: number | null;
+  avgOpportunityScore: number | null;
+  topPicks: SectorTopPickDto[];
 }
 
 // ── Screener ──────────────────────────────────────────────────────────────────
@@ -356,6 +413,8 @@ export interface PipelineStatusDto {
 
 export interface SourceStatusDto {
   name: string;
+  key: string;
+  description: string;
   status: string;
   lastRunAt: string | null;
   stocksScraped: number | null;
@@ -401,4 +460,29 @@ export interface PagedResponseDto<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface ScraperConfigDto {
+  name: string;
+  type: string;
+  description: string;
+  baseUrl: string;
+  enabled: boolean;
+  maxRequestsPerMinute: number;
+  minDelayMs: number;
+  maxDelayMs: number;
+  retryMaxAttempts: number;
+  retryInitialDelayMs: number;
+  retryBackoffMultiplier: number;
+  hasCredentials: boolean;
+}
+
+export interface ScraperConfigPatchRequest {
+  enabled?: boolean;
+  description?: string;
+  baseUrl?: string;
+  maxRequestsPerMinute?: number;
+  minDelayMs?: number;
+  maxDelayMs?: number;
+  retryMaxAttempts?: number;
 }

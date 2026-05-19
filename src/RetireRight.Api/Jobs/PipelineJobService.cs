@@ -65,9 +65,10 @@ public sealed class PipelineJobService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Pipeline job {JobType} failed", job.JobType);
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                _logger.LogError(ex, "Pipeline job {JobType} failed: {Inner}", job.JobType, msg);
                 _broadcaster.Publish(new PipelineEventDto("JOB_FAILED", job.JobType,
-                    null, ex.Message, null, null, DateTime.UtcNow));
+                    null, msg, null, null, DateTime.UtcNow));
                 _broadcaster.UpdateActiveJob(null);
             }
         }

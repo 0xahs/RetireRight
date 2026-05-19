@@ -174,6 +174,93 @@ namespace RetireRight.Infrastructure.Migrations
                     b.ToTable("daily_prices", (string)null);
                 });
 
+            modelBuilder.Entity("RetireRight.Core.Models.DataSourceConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BaseUrl")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("base_url");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CredentialEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("credential_email");
+
+                    b.Property<string>("CredentialPassword")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("credential_password");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("MaxDelayMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_delay_ms");
+
+                    b.Property<int>("MaxRequestsPerMinute")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_requests_per_minute");
+
+                    b.Property<int>("MinDelayMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_delay_ms");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<double>("RetryBackoffMultiplier")
+                        .HasColumnType("double precision")
+                        .HasColumnName("retry_backoff_multiplier");
+
+                    b.Property<int>("RetryInitialDelayMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_initial_delay_ms");
+
+                    b.Property<int>("RetryMaxAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_max_attempts");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("data_source_configs", (string)null);
+                });
+
             modelBuilder.Entity("RetireRight.Core.Models.Dividend", b =>
                 {
                     b.Property<long>("Id")
@@ -247,7 +334,7 @@ namespace RetireRight.Infrastructure.Migrations
 
                     b.HasIndex("ScrapeRunId");
 
-                    b.HasIndex("StockId", "ExDate", "DividendType")
+                    b.HasIndex("StockId", "ExDate")
                         .IsUnique();
 
                     b.ToTable("dividends", (string)null);
@@ -690,8 +777,8 @@ namespace RetireRight.Infrastructure.Migrations
                         .HasColumnName("created_at");
 
                     b.Property<string>("Industry")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("industry");
 
                     b.Property<bool>("IsActive")
@@ -727,8 +814,8 @@ namespace RetireRight.Infrastructure.Migrations
 
                     b.Property<string>("Sector")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("sector");
 
                     b.Property<string>("Symbol")

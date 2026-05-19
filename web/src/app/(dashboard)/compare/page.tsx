@@ -268,7 +268,7 @@ interface RowProps<T> {
 }
 
 function Row<T>({ label, cols, values, fmt, better }: RowProps<T>) {
-  const numeric = values.map(v => (typeof v === 'number' ? v : null));
+  const numeric = values.map(v => (typeof v === 'number' ? v : null)) as (number | null)[];
   const valid = numeric.filter((v): v is number => v != null);
   const allEqual = valid.length > 0 && valid.every(v => v === valid[0]);
   let bestIdx = -1;

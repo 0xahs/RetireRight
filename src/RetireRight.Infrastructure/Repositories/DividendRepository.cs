@@ -34,8 +34,7 @@ public class DividendRepository : IDividendRepository
         var existing = await _db.Dividends
             .FirstOrDefaultAsync(d =>
                 d.StockId == dividend.StockId &&
-                d.ExDate == dividend.ExDate &&
-                d.DividendType == dividend.DividendType, ct);
+                d.ExDate == dividend.ExDate, ct);
 
         if (existing is null)
         {
@@ -50,6 +49,7 @@ public class DividendRepository : IDividendRepository
             existing.Percentage = dividend.Percentage;
             existing.Year = dividend.Year;
             existing.Frequency = dividend.Frequency;
+            existing.DividendType = dividend.DividendType;
             existing.Source = dividend.Source;
             existing.ScrapeRunId = dividend.ScrapeRunId;
             existing.UpdatedAt = DateTime.UtcNow;

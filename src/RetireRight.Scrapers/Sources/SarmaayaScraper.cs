@@ -24,7 +24,6 @@ public class SarmaayaScraper : BaseScraper
 {
     private readonly IStockRepository _stockRepo;
     private readonly IPriceRepository _priceRepo;
-    private readonly IDividendRepository _dividendRepo;
     private readonly IRawResponseRepository _rawRepo;
     private readonly IFundamentalsRepository _fundamentalsRepo;
     private readonly IOwnershipRepository _ownershipRepo;
@@ -45,7 +44,6 @@ public class SarmaayaScraper : BaseScraper
         DataSourceOptions sourceConfig,
         IStockRepository stockRepo,
         IPriceRepository priceRepo,
-        IDividendRepository dividendRepo,
         IRawResponseRepository rawRepo,
         IFundamentalsRepository fundamentalsRepo,
         IOwnershipRepository ownershipRepo,
@@ -56,7 +54,6 @@ public class SarmaayaScraper : BaseScraper
         _loggerFactory = loggerFactory;
         _stockRepo = stockRepo;
         _priceRepo = priceRepo;
-        _dividendRepo = dividendRepo;
         _rawRepo = rawRepo;
         _fundamentalsRepo = fundamentalsRepo;
         _ownershipRepo = ownershipRepo;
@@ -137,12 +134,11 @@ public class SarmaayaScraper : BaseScraper
 
                         Logger.LogInformation(
                             "[{Source}] {Symbol}: Rs. {Price} ({Change:+0.00;-0.00}%) | " +
-                            "{DivCount} dividends | {FundCount} fundamentals | " +
-                            "{HistCount} history | {OwnCount} owners | {InsCount} insiders | {AnnCount} announcements",
+                            "{FundCount} fundamentals | {HistCount} history | " +
+                            "{OwnCount} owners | {InsCount} insiders | {AnnCount} announcements",
                             data.Source, symbol, data.Close, data.ChangePct ?? 0,
-                            data.Dividends.Count, data.Fundamentals.Count,
-                            data.PriceHistory.Count, data.Ownership.Count,
-                            data.InsiderTransactions.Count, data.Announcements.Count);
+                            data.Fundamentals.Count, data.PriceHistory.Count,
+                            data.Ownership.Count, data.InsiderTransactions.Count, data.Announcements.Count);
                     }
                     else
                     {
@@ -181,7 +177,6 @@ public class SarmaayaScraper : BaseScraper
             {
                 Symbol = data.Symbol,
                 Name = data.Name ?? data.Symbol,
-                Sector = SarmaayaKeyMapper.MapSector(data.SectorName),
                 Industry = data.IndustryName,
                 Isin = data.Isin,
                 IsWatchlist = true,
@@ -190,8 +185,7 @@ public class SarmaayaScraper : BaseScraper
         }
         else
         {
-            // Update mutable fields
-            stock.Sector = SarmaayaKeyMapper.MapSector(data.SectorName);
+            // Update mutable fields — sector is owned by PsxUniverseScraper, don't overwrite
             stock.Industry = data.IndustryName ?? stock.Industry;
             stock.Isin = data.Isin ?? stock.Isin;
             stock.Name = data.Name ?? stock.Name;
@@ -217,21 +211,6 @@ public class SarmaayaScraper : BaseScraper
             }, ct);
         }
 
-        // Save dividends
-        foreach (var div in data.Dividends)
-        {
-            await _dividendRepo.UpsertAsync(new Dividend
-            {
-                StockId = stock.Id,
-                ExDate = div.AnnouncementDate,
-                Dps = div.Dps,
-                Percentage = div.Percentage,
-                Year = div.Year,
-                DividendType = div.Type,
-                Source = data.Source,
-                ScrapeRunId = _currentScrapeRunId
-            }, ct);
-        }
 
         // Save price history (backfill)
         foreach (var entry in data.PriceHistory)

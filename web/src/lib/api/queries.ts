@@ -1,19 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type {
+  StockListItemDto,
   StockSummaryDto, StockDetailDto, StockMetricsDto, StockMemoDto, MonthlyPlanDto,
   DividendSummaryDto, UpcomingDividendDto, PricePointDto, SignalHistoryDto,
   ScreenerRequestDto, ScreenerResultDto,
   MacroDto,
+  SectorSummaryDto,
   HoldingDto, TransactionDto, PortfolioSummaryDto,
   AddTransactionRequest, UpdateHoldingRequest,
   PipelineStatusDto, ScrapeRunDto, PagedResponseDto,
-  ScheduleConfigDto,
+  ScheduleConfigDto, ScraperConfigDto, ScraperConfigPatchRequest,
 } from './types';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
 
 export const queryKeys = {
+  allStocks: ['stocks', 'all'] as const,
   stocks: ['stocks'] as const,
   stock: (symbol: string) => ['stocks', symbol] as const,
   stockMetrics: (symbol: string) => ['stocks', symbol, 'metrics'] as const,
@@ -29,6 +32,7 @@ export const queryKeys = {
   pipelineStatus: ['pipeline', 'status'] as const,
   pipelineRuns: (page: number) => ['pipeline', 'runs', page] as const,
   scheduleConfig: ['settings', 'schedule'] as const,
+  scraperConfigs: ['scrapers'] as const,
 };
 
 // ── Stocks ────────────────────────────────────────────────────────────────────
@@ -38,6 +42,26 @@ export function useStocks() {
     queryKey: queryKeys.stocks,
     queryFn: () => api.get<StockSummaryDto[]>('/api/stocks'),
     staleTime: 60_000,
+  });
+}
+
+export function useAllStocks() {
+  return useQuery({
+    queryKey: queryKeys.allStocks,
+    queryFn: () => api.get<StockListItemDto[]>('/api/stocks/all'),
+    staleTime: 30_000,
+  });
+}
+
+export function useSetWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ symbol, isWatchlist }: { symbol: string; isWatchlist: boolean }) =>
+      api.patch<void>(`/api/stocks/${symbol}/watchlist`, { isWatchlist }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.allStocks });
+      qc.invalidateQueries({ queryKey: queryKeys.stocks });
+    },
   });
 }
 
@@ -115,6 +139,16 @@ export function useMacro() {
   return useQuery({
     queryKey: queryKeys.macro,
     queryFn: () => api.get<MacroDto>('/api/macro'),
+    staleTime: 300_000,
+  });
+}
+
+// ── Sectors ───────────────────────────────────────────────────────────────────
+
+export function useSectors() {
+  return useQuery({
+    queryKey: ['sectors'] as const,
+    queryFn: () => api.get<SectorSummaryDto[]>('/api/sectors'),
     staleTime: 300_000,
   });
 }
@@ -270,5 +304,35 @@ export function useUpdateScheduleConfig() {
     mutationFn: (config: ScheduleConfigDto) =>
       api.put<ScheduleConfigDto>('/api/settings/schedule', config),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.scheduleConfig }),
+  });
+}
+
+// ── Scraper Configs ───────────────────────────────────────────────────────────
+
+export function useScraperConfigs() {
+  return useQuery({
+    queryKey: queryKeys.scraperConfigs,
+    queryFn: () => api.get<ScraperConfigDto[]>('/api/scrapers'),
+    staleTime: 30_000,
+  });
+}
+
+export function useToggleScraper() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.post<ScraperConfigDto>(`/api/scrapers/${name}/toggle`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.scraperConfigs });
+      qc.invalidateQueries({ queryKey: queryKeys.pipelineStatus });
+    },
+  });
+}
+
+export function usePatchScraper() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, patch }: { name: string; patch: ScraperConfigPatchRequest }) =>
+      api.patch<ScraperConfigDto>(`/api/scrapers/${name}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.scraperConfigs }),
   });
 }

@@ -1,5 +1,3 @@
-using RetireRight.Core.Enums;
-
 namespace RetireRight.MetricsEngine;
 
 /// <summary>
@@ -33,8 +31,8 @@ public class MetricContext
     // Fundamental data (from scraped sources, keyed by field name)
     public Dictionary<string, decimal?> Fundamentals { get; init; } = new();
 
-    // Sector for sector-specific calculators
-    public Sector? Sector { get; init; }
+    // Sector string (as stored in DB — e.g. "Commercial Banks", "Banking Services")
+    public string? Sector { get; init; }
 }
 
 public record PricePoint(DateOnly Date, decimal Close, decimal? High, decimal? Low, long? Volume);

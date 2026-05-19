@@ -1,5 +1,4 @@
 using RetireRight.Core.Constants;
-using RetireRight.Core.Enums;
 using RetireRight.MetricsEngine.Calculators;
 
 namespace RetireRight.MetricsEngine;
@@ -12,8 +11,10 @@ namespace RetireRight.MetricsEngine;
 /// </summary>
 public static class FundamentalsEnricher
 {
-    private static readonly HashSet<Sector> BankingSectors =
-        [Sector.Banking, Sector.IslamicBanking];
+    private static bool IsBankingSector(string? sector) =>
+        sector is not null &&
+        (sector.Contains("Bank", StringComparison.OrdinalIgnoreCase) ||
+         sector.Contains("Islamic", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Enriches the merged fundamentals dictionary in-place with derived values.
@@ -23,10 +24,10 @@ public static class FundamentalsEnricher
         Dictionary<string, decimal?> fundamentals,
         IReadOnlyList<DividendPoint> dividendHistory,
         decimal? currentPrice,
-        Sector sector)
+        string? sector)
     {
         var f = fundamentals;
-        var isBanking = BankingSectors.Contains(sector);
+        var isBanking = IsBankingSector(sector);
 
         // 1. Compute DPS from dividend history when not in fundamentals
         ComputeDps(f, dividendHistory);

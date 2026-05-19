@@ -9,5 +9,6 @@ public enum DataSourceType
     TradingEconomics,
     BrokerResearch,
     StockAnalysis,
+    PsxUniverse,
     Sbp
 }

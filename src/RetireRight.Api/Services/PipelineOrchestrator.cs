@@ -7,6 +7,7 @@ using RetireRight.Core.Models;
 using RetireRight.Infrastructure.Database;
 using RetireRight.MetricsEngine;
 using RetireRight.MetricsEngine.Calculators;
+using RetireRight.Scrapers;
 using EngineService = RetireRight.MetricsEngine.MetricsEngine;
 
 namespace RetireRight.Api.Services;
@@ -24,7 +25,7 @@ public sealed class PipelineOrchestrator
     private readonly IComputedMetricsRepository _metricsRepo;
     private readonly IScrapeRunRepository _scrapeRunRepo;
     private readonly RetireRightDbContext _db;
-    private readonly IEnumerable<IScraper> _scrapers;
+    private readonly ScraperFactory _scraperFactory;
     private readonly EngineService _engine;
     private readonly IEnumerable<IExporter> _exporters;
     private readonly RetireRightOptions _options;
@@ -38,7 +39,7 @@ public sealed class PipelineOrchestrator
         IComputedMetricsRepository metricsRepo,
         IScrapeRunRepository scrapeRunRepo,
         RetireRightDbContext db,
-        IEnumerable<IScraper> scrapers,
+        ScraperFactory scraperFactory,
         EngineService engine,
         IEnumerable<IExporter> exporters,
         IOptions<RetireRightOptions> options,
@@ -51,7 +52,7 @@ public sealed class PipelineOrchestrator
         _metricsRepo = metricsRepo;
         _scrapeRunRepo = scrapeRunRepo;
         _db = db;
-        _scrapers = scrapers;
+        _scraperFactory = scraperFactory;
         _engine = engine;
         _exporters = exporters;
         _options = options.Value;
@@ -71,21 +72,17 @@ public sealed class PipelineOrchestrator
 
         var results = new List<ScrapeRunDto>();
 
-        var scrapers = sourceFilter is null
-            ? _scrapers
-            : _scrapers.Where(s => s.Source.ToString().Equals(sourceFilter, StringComparison.OrdinalIgnoreCase)
-                // allow "Macro" as alias for TradingEconomics
-                || (sourceFilter.Equals("Macro", StringComparison.OrdinalIgnoreCase)
-                    && s.Source == RetireRight.Core.Enums.DataSourceType.TradingEconomics));
+        var scrapers = await _scraperFactory.CreateEnabledAsync(sourceFilter, ct);
 
         foreach (var scraper in scrapers)
         {
-            var isMacro = scraper.Source == RetireRight.Core.Enums.DataSourceType.TradingEconomics;
+            var isMacro      = scraper.Source == RetireRight.Core.Enums.DataSourceType.TradingEconomics;
+            var isUniverse   = scraper.Source == RetireRight.Core.Enums.DataSourceType.PsxUniverse;
             var run = await _scrapeRunRepo.CreateAsync(new ScrapeRun
             {
                 Source = scraper.Source.ToString(),
                 Mode = mode,
-                SymbolCount = isMacro ? 0 : targetSymbols.Length
+                SymbolCount = (isMacro || isUniverse) ? 0 : targetSymbols.Length
             }, ct);
 
             try
@@ -102,8 +99,10 @@ public sealed class PipelineOrchestrator
                 run.RecordsFailed = result.RecordsFailed;
                 run.Status = result.Success ? "completed" : "failed";
                 run.CompletedAt = DateTime.UtcNow;
+                if (isUniverse) run.SymbolCount = result.RecordsScraped;
 
-                onProgress?.Invoke(run.Source, result.RecordsScraped, targetSymbols.Length);
+                onProgress?.Invoke(run.Source, result.RecordsScraped,
+                    isUniverse ? result.RecordsScraped : targetSymbols.Length);
             }
             catch (Exception ex)
             {
@@ -113,7 +112,18 @@ public sealed class PipelineOrchestrator
             }
             finally
             {
-                await _scrapeRunRepo.UpdateAsync(run, ct);
+                // Clear the change tracker so the 800+ stock/fundamental entities accumulated
+                // during the scrape don't interfere with this final save.
+                _db.ChangeTracker.Clear();
+                try
+                {
+                    await _scrapeRunRepo.UpdateAsync(run, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to finalize ScrapeRun {RunId} — inner: {Inner}",
+                        run.Id, ex.InnerException?.Message ?? ex.Message);
+                }
                 await scraper.DisposeAsync();
             }
 
@@ -287,7 +297,7 @@ public sealed class PipelineOrchestrator
             {
                 Symbol = stock.Symbol,
                 Name = stock.Name,
-                Sector = stock.Sector.ToString(),
+                Sector = stock.Sector,
                 Price = price?.Close,
                 ChangePct = price?.ChangePct,
                 Volume = price?.Volume,

@@ -1,11 +1,9 @@
 using RetireRight.Core.Constants;
-using RetireRight.Core.Enums;
 
 namespace RetireRight.Scrapers.Clients.Sarmaaya;
 
 /// <summary>
-/// Maps Sarmaaya API field names to standard <see cref="FundamentalKeys"/> vocabulary
-/// and Sarmaaya sector strings to <see cref="Sector"/> enum values.
+/// Maps Sarmaaya API field names to standard <see cref="FundamentalKeys"/> vocabulary.
 ///
 /// The API returns display names like "Basic EPS" which get normalized by SarmaayaApi
 /// into prefixed snake_case keys: income_basic_eps, bs_total_assets, ratio_price_to_earnings.
@@ -266,43 +264,4 @@ public static class SarmaayaKeyMapper
         return result;
     }
 
-    // ── Sector Mapping ───────────────────────────────────────
-
-    private static readonly Dictionary<string, Sector> SectorMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Commercial Banks"] = Sector.Banking,
-        ["Banks"] = Sector.Banking,
-        ["Islamic Banking"] = Sector.IslamicBanking,
-        ["Oil & Gas Exploration Companies"] = Sector.OilAndGas,
-        ["Oil & Gas Marketing Companies"] = Sector.OilAndGas,
-        ["Exploration & Production"] = Sector.OilAndGas,
-        ["Refinery"] = Sector.OilAndGas,
-        ["Power Generation & Distribution"] = Sector.Power,
-        ["Power Generation"] = Sector.Power,
-        ["Independent Power Producers"] = Sector.Power,
-        ["Fertilizer"] = Sector.Fertilizer,
-        ["Cement"] = Sector.Cement,
-        ["Technology & Communication"] = Sector.Technology,
-        ["Technology"] = Sector.Technology,
-        ["Automobile Assembler"] = Sector.Automobile,
-        ["Automobile Parts & Accessories"] = Sector.Automobile,
-        ["Pharmaceuticals"] = Sector.Pharmaceutical,
-        ["Pharmaceutical"] = Sector.Pharmaceutical,
-        ["Textile Composite"] = Sector.Textile,
-        ["Textile Spinning"] = Sector.Textile,
-        ["Textile Weaving"] = Sector.Textile,
-        ["Sugar Allied Industries"] = Sector.Food,
-        ["Food & Personal Care Products"] = Sector.Food,
-        ["Chemical"] = Sector.Chemical,
-        ["Chemicals"] = Sector.Chemical,
-        ["Insurance"] = Sector.Insurance,
-        ["Real Estate Investment Trust"] = Sector.RealEstate,
-        ["Telecommunication"] = Sector.Telecom,
-    };
-
-    public static Sector MapSector(string? sectorName)
-    {
-        if (sectorName is null) return Sector.Other;
-        return SectorMap.GetValueOrDefault(sectorName, Sector.Other);
-    }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using RetireRight.Api.Jobs;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.DTOs;
+using RetireRight.Core.Interfaces;
 using RetireRight.Infrastructure.Database;
 
 namespace RetireRight.Api.Endpoints;
@@ -26,14 +27,18 @@ public static class PipelineEndpoints
         settingsGroup.MapPut("/schedule", UpdateScheduleAsync).WithName("UpdateSchedule");
     }
 
-    private static readonly string[] AllSources = ["Sarmaaya", "StockAnalysis", "TradingEconomics"];
-    private static string FriendlySourceName(string source) =>
-        source == "TradingEconomics" ? "Macro" : source;
+    private static string FriendlySourceName(string source) => source switch
+    {
+        "TradingEconomics" => "Macro",
+        "PsxTerminal" => "Dividends",
+        _ => source
+    };
 
     private static async Task<IResult> GetStatusAsync(
         PipelineJobService jobService,
         PipelineEventBroadcaster broadcaster,
         RetireRightDbContext db,
+        IScraperConfigRepository scraperConfigs,
         CancellationToken ct)
     {
         var recentRuns = await db.ScrapeRuns
@@ -43,24 +48,30 @@ public static class PipelineEndpoints
 
         var runsBySource = recentRuns.GroupBy(r => r.Source).ToDictionary(g => g.Key, g => g.First());
 
-        var sourceGroups = AllSources.Select(source =>
+        var configuredSources = await scraperConfigs.GetAllAsync(ct);
+
+        var sourceGroups = configuredSources.Select(ds =>
         {
-            if (runsBySource.TryGetValue(source, out var latest))
+            if (runsBySource.TryGetValue(ds.Name, out var latest))
             {
                 var duration = latest.CompletedAt.HasValue
                     ? latest.CompletedAt.Value - latest.StartedAt
                     : (TimeSpan?)null;
                 return new SourceStatusDto(
-                    Name: FriendlySourceName(source),
-                    Status: latest.Status,
+                    Name: FriendlySourceName(ds.Name),
+                    Key: ds.Name,
+                    Description: ds.Description,
+                    Status: ds.Enabled ? latest.Status : "disabled",
                     LastRunAt: latest.StartedAt,
                     StocksScraped: latest.RecordsScraped,
                     StocksFailed: latest.RecordsFailed,
                     Duration: duration);
             }
             return new SourceStatusDto(
-                Name: FriendlySourceName(source),
-                Status: "never",
+                Name: FriendlySourceName(ds.Name),
+                Key: ds.Name,
+                Description: ds.Description,
+                Status: ds.Enabled ? "never" : "disabled",
                 LastRunAt: null,
                 StocksScraped: null,
                 StocksFailed: null,

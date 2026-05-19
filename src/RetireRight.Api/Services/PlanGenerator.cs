@@ -116,7 +116,7 @@ public static class PlanGenerator
             picks.Add(new PlanPickDto(
                 Symbol: c.Stock.Symbol,
                 Name: c.Stock.Name,
-                Sector: c.Stock.Sector.ToString(),
+                Sector: c.Stock.Sector,
                 Verdict: c.Grammar.Verdict,
                 ConvictionLevel: c.Grammar.ConvictionLevel,
                 CompositeScore: c.Computed?.CompositeScore,

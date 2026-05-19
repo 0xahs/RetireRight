@@ -128,6 +128,25 @@ public static class FundamentalKeys
     public const string Tier1Ratio = "tier1_ratio";
     public const string CarRatio = "car_ratio";
 
+    // ── Price Range (StockAnalysis universe) ────────────────────
+    public const string Week52Low = "w52_low";
+    public const string Week52High = "w52_high";
+    public const string Week52LowChgPct = "w52_low_chg_pct";
+    public const string Week52HighChgPct = "w52_high_chg_pct";
+
+    // ── Price Returns (StockAnalysis universe) ───────────────────
+    public const string TotalReturn1M = "total_return_1m";
+    public const string TotalReturn6M = "total_return_6m";
+    public const string TotalReturnYtd = "total_return_ytd";
+    public const string TotalReturn1Y = "total_return_1y";
+    public const string TotalReturn5Y = "total_return_5y";
+    public const string TotalReturn10Y = "total_return_10y";
+
+    // ── Company Profile (StockAnalysis universe) ─────────────────
+    public const string NetCashDebt = "net_cash_debt";
+    public const string Employees = "employees";
+    public const string FoundedYear = "founded_year";
+
     // ── Prior Year (for growth calculations) ─────────────────
     public const string RevenuePrevYear = "revenue_prev_year";
     public const string EpsPrevYear = "eps_prev_year";

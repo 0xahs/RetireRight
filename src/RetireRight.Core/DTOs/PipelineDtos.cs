@@ -10,6 +10,8 @@ public record PipelineStatusDto(
 
 public record SourceStatusDto(
     string Name,
+    string Key,
+    string Description,
     string Status,
     DateTime? LastRunAt,
     int? StocksScraped,

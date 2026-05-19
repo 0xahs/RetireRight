@@ -34,6 +34,7 @@ public class DataSourceOptions
 {
     public string Name { get; set; } = "";
     public string Type { get; set; } = "";
+    public string Description { get; set; } = "";
     public string BaseUrl { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public RateLimitOptions RateLimit { get; set; } = new();

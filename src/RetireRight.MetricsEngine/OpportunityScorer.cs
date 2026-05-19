@@ -1,3 +1,5 @@
+using RetireRight.Core.Constants;
+
 namespace RetireRight.MetricsEngine;
 
 /// <summary>
@@ -26,8 +28,10 @@ public static class OpportunityScorer
         // ── Standalone metrics ──────────────────────────────────
 
         // O1. 52-Week Range Position (0 = at 52W low, 100 = at 52W high)
+        // Primary: derive from price history (OHLC). Fallback: use pre-computed 52W values from fundamentals.
         var price = context.CurrentPrice;
         decimal? rangePosition = null;
+
         if (context.PriceHistory.Count > 0 && price is not null)
         {
             var oneYearAgo = DateOnly.FromDateTime(DateTime.Now.AddYears(-1));
@@ -43,10 +47,24 @@ public static class OpportunityScorer
                 }
             }
         }
+
+        if (rangePosition is null && price is not null)
+        {
+            var low52w  = context.Fundamentals.GetValueOrDefault(FundamentalKeys.Week52Low);
+            var high52w = context.Fundamentals.GetValueOrDefault(FundamentalKeys.Week52High);
+            if (low52w is not null && high52w is not null && high52w != low52w)
+            {
+                rangePosition = ((price.Value - low52w.Value) / (high52w.Value - low52w.Value)) * 100;
+                rangePosition = Math.Clamp(rangePosition.Value, 0, 100);
+            }
+        }
+
         o["o1_52w_range_position"] = rangePosition;
 
         // O2. Drawdown from 52W High (how far has it fallen?)
-        o["o2_drawdown_from_52w_high"] = metrics.GetValueOrDefault("c20_price_vs_52w_high");
+        // Primary: computed metric from price history. Fallback: w52_high_chg_pct from fundamentals (negative = below high).
+        o["o2_drawdown_from_52w_high"] = metrics.GetValueOrDefault("c20_price_vs_52w_high")
+            ?? context.Fundamentals.GetValueOrDefault(FundamentalKeys.Week52HighChgPct);
 
         // ── Component Scores ────────────────────────────────────
 

@@ -20,6 +20,16 @@ public class StockRepository : IStockRepository
     public async Task<IReadOnlyList<Stock>> GetAllActiveAsync(CancellationToken ct = default)
         => await _db.Stocks.Where(s => s.IsActive).OrderBy(s => s.Symbol).ToListAsync(ct);
 
+    public async Task<bool> SetWatchlistAsync(string symbol, bool isWatchlist, CancellationToken ct = default)
+    {
+        var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.Symbol == symbol, ct);
+        if (stock is null) return false;
+        stock.IsWatchlist = isWatchlist;
+        stock.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     public async Task<Stock> UpsertAsync(Stock stock, CancellationToken ct = default)
     {
         var existing = await _db.Stocks.FirstOrDefaultAsync(s => s.Symbol == stock.Symbol, ct);

@@ -1,5 +1,4 @@
 using RetireRight.Core.Constants;
-using RetireRight.Core.Enums;
 
 namespace RetireRight.MetricsEngine.Calculators;
 
@@ -12,11 +11,14 @@ public class BankingCalculator : IMetricCalculator
 {
     public string Category => "H_Banking";
 
-    private static readonly HashSet<Sector> BankingSectors = [Sector.Banking, Sector.IslamicBanking];
+    private static bool IsBankingSector(string? sector) =>
+        sector is not null &&
+        (sector.Contains("Bank", StringComparison.OrdinalIgnoreCase) ||
+         sector.Contains("Islamic", StringComparison.OrdinalIgnoreCase));
 
     public Task<Dictionary<string, decimal?>> ComputeAsync(MetricContext ctx, CancellationToken ct = default)
     {
-        if (ctx.Sector is null || !BankingSectors.Contains(ctx.Sector.Value))
+        if (!IsBankingSector(ctx.Sector))
             return Task.FromResult(new Dictionary<string, decimal?>());
 
         var m = new Dictionary<string, decimal?>();

@@ -69,7 +69,7 @@ public static class PortfolioEndpoints
                 Id: h.Id,
                 Symbol: stock.Symbol,
                 Name: stock.Name,
-                Sector: stock.Sector.ToString(),
+                Sector: stock.Sector,
                 Shares: h.Shares,
                 AvgCost: h.AvgCost,
                 CurrentPrice: currentPrice,
@@ -183,7 +183,7 @@ public static class PortfolioEndpoints
             if (px <= 0) continue;
             var mv = h.Shares * px;
             portfolioMV += mv;
-            var sector = h.Stock!.Sector.ToString();
+            var sector = h.Stock!.Sector;
             sectorMarketValues[sector] = sectorMarketValues.GetValueOrDefault(sector) + mv;
         }
         decimal SectorWeight(string sector) =>
@@ -205,7 +205,7 @@ public static class PortfolioEndpoints
                 .OrderByDescending(c => c.ComputedDate)
                 .FirstOrDefaultAsync(ct);
 
-            var sectorStr = s.Sector.ToString();
+            var sectorStr = s.Sector;
             var grammar = SignalGrammar.Derive(
                 computed?.Metrics ?? new Dictionary<string, decimal?>(),
                 computed, price?.UpdatedAt, sectorStr);

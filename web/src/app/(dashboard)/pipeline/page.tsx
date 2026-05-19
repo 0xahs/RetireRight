@@ -3,6 +3,7 @@
 import {
   usePipelineStatus, usePipelineRuns, useTriggerScrape,
   useTriggerCompute, useTriggerExport, useScheduleConfig, useUpdateScheduleConfig,
+  useScraperConfigs, useToggleScraper,
 } from '@/lib/api/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -109,6 +110,7 @@ export default function PipelinePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <StatusPanel liveProgress={liveProgress} />
+          <ScraperConfigPanel />
           <RunHistoryTable />
         </div>
         <div className="space-y-4">
@@ -116,6 +118,65 @@ export default function PipelinePage() {
           <SchedulePanel />
           <LiveEventsLog events={events} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ScraperConfigPanel() {
+  const { data: configs, isLoading } = useScraperConfigs();
+  const toggle = useToggleScraper();
+
+  if (isLoading) return <Skeleton className="h-32 w-full" style={{ borderRadius: 0 }} />;
+  if (!configs?.length) return null;
+
+  return (
+    <div className="panel">
+      <div className="panel-strip px-4 py-1.5 flex items-center justify-between">
+        <span className="text-amber font-bold text-[10px] tracking-[0.18em] uppercase">▌ DATA SOURCES</span>
+        <span className="text-[9px] uppercase tracking-[0.15em] text-warm-dim font-bold">DB CONFIG</span>
+      </div>
+      <div className="divide-y divide-border">
+        {configs.map((c) => (
+          <div key={c.name} className="flex items-center gap-3 px-4 py-2.5">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-foreground">{c.name}</span>
+                {c.hasCredentials && (
+                  <span className="text-[8px] uppercase tracking-[0.15em] font-bold text-amber border border-amber/30 px-1 py-px">KEY</span>
+                )}
+              </div>
+              <div className="text-[9px] uppercase tracking-[0.1em] text-warm-dim font-medium mt-0.5">
+                {c.description} · {c.maxRequestsPerMinute} req/min · {c.minDelayMs/1000}-{c.maxDelayMs/1000}s delay
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={cn(
+                'text-[9px] font-bold uppercase tracking-[0.15em]',
+                c.enabled ? 'text-cyan-pos' : 'text-warm-dim',
+              )}>
+                {c.enabled ? 'ON' : 'OFF'}
+              </span>
+              <button
+                onClick={() => toggle.mutate(c.name)}
+                disabled={toggle.isPending}
+                className={cn(
+                  'relative inline-flex h-4 w-7 items-center transition-colors cursor-pointer border',
+                  c.enabled
+                    ? 'bg-[oklch(0.79_0.13_180_/_20%)] border-[oklch(0.79_0.13_180_/_50%)]'
+                    : 'bg-white/[0.04] border-border',
+                  toggle.isPending && 'opacity-50 cursor-not-allowed',
+                )}
+                aria-label={`Toggle ${c.name}`}
+              >
+                <span className={cn(
+                  'inline-block h-2.5 w-2.5 transition-transform',
+                  c.enabled ? 'translate-x-3.5 bg-cyan-pos' : 'translate-x-0.5 bg-warm-dim',
+                )} />
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -219,22 +280,19 @@ function StatusPanel({ liveProgress }: { liveProgress: LiveProgress | null }) {
   );
 }
 
-const SOURCES = [
-  { key: 'Sarmaaya',      label: 'Sarmaaya',      description: 'Prices, fundamentals, dividends' },
-  { key: 'StockAnalysis', label: 'StockAnalysis',  description: 'Cash flow metrics' },
-  { key: 'Macro',         label: 'Macro',          description: 'PKR/USD, Brent, SBP rate' },
-];
-
 function TriggerPanel() {
+  const { data: status } = usePipelineStatus();
   const scrape = useTriggerScrape();
   const compute = useTriggerCompute();
   const exportRun = useTriggerExport();
   const [pendingSource, setPendingSource] = useState<string | null>(null);
 
-  const triggerSource = (source: string) => {
-    setPendingSource(source);
-    scrape.mutate({ source }, { onSettled: () => setPendingSource(null) });
+  const triggerSource = (key: string) => {
+    setPendingSource(key);
+    scrape.mutate({ source: key }, { onSettled: () => setPendingSource(null) });
   };
+
+  const sources = status?.sources ?? [];
 
   return (
     <div className="panel">
@@ -245,11 +303,13 @@ function TriggerPanel() {
         <div>
           <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-warm-dim mb-2">─ SCRAPE</p>
           <div className="space-y-1">
-            {SOURCES.map((s) => (
+            {sources.map((s) => (
               <div key={s.key} className="flex items-center gap-2 px-2 py-1.5 border border-border bg-white/[0.015]">
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-foreground">{s.label}</div>
-                  <div className="text-[9px] uppercase tracking-[0.1em] text-warm-dim font-medium mt-0.5">{s.description}</div>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.05em] text-foreground">{s.name}</div>
+                  {s.description && (
+                    <div className="text-[9px] uppercase tracking-[0.1em] text-warm-dim font-medium mt-0.5">{s.description}</div>
+                  )}
                 </div>
                 <button
                   onClick={() => triggerSource(s.key)}
@@ -412,15 +472,15 @@ function RunHistoryTable() {
           NO RUNS LOGGED
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-72">
           <table className="w-full text-[11px] num">
             <thead>
-              <tr className="border-b border-border bg-white/[0.015]">
-                <th className="text-left pl-4 pr-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">SOURCE</th>
-                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">MODE</th>
-                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STATUS</th>
-                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">RECORDS</th>
-                <th className="text-right pr-4 pl-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STARTED</th>
+              <tr className="border-b border-border">
+                <th className="sticky top-0 bg-card text-left pl-4 pr-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">SOURCE</th>
+                <th className="sticky top-0 bg-card text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">MODE</th>
+                <th className="sticky top-0 bg-card text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STATUS</th>
+                <th className="sticky top-0 bg-card text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">RECORDS</th>
+                <th className="sticky top-0 bg-card text-right pr-4 pl-3 py-2 text-[9px] uppercase tracking-[0.18em] text-warm-dim font-bold">STARTED</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
