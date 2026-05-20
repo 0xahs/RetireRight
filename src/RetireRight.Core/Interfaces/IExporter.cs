@@ -23,7 +23,9 @@ public record MarketSnapshot
     public decimal? BrentCrude { get; init; }
     public decimal? SbpRate { get; init; }
     public decimal? Cpi { get; init; }
-    public DateTime AsOf { get; init; }
+    // DateTimeOffset so the export carries the local offset (e.g. +05:00) and the date
+    // matches the user's clock — DateTime.UtcNow shows yesterday's date for early-AM PKT runs.
+    public DateTimeOffset AsOf { get; init; }
 }
 
 public record StockSnapshot

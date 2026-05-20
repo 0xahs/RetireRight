@@ -121,14 +121,20 @@ try
             Log.Information("Seeded {Count} scraper configs from appsettings", rrOptions.DataSources.Count);
         }
 
-        // Ensure PsxUniverse scraper config exists (added after initial seed)
-        if (await configRepo.GetByNameAsync("PsxUniverse") is null)
+        // Ensure the Listings scraper config exists (added after the initial seed).
+        // The Type identifier is pulled from the scraper class's [DataSource] attribute so it stays the single source of truth.
+        var listingsType = typeof(RetireRight.Scrapers.Sources.PsxUniverseScraper)
+            .GetCustomAttributes(typeof(RetireRight.Core.Attributes.DataSourceAttribute), false)
+            .Cast<RetireRight.Core.Attributes.DataSourceAttribute>()
+            .First().Identifier;
+        var hasListings = (await configRepo.GetAllAsync()).Any(c => c.Type == listingsType);
+        if (!hasListings)
         {
             await configRepo.UpsertAsync(new DataSourceConfig
             {
-                Name = "PsxUniverse",
-                Type = "PsxUniverse",
-                Description = "Full PSX stock universe from StockAnalysis listing page",
+                Name = "Listings",
+                Type = listingsType,
+                Description = "PSX universe sync (stockanalysis.com)",
                 BaseUrl = "https://stockanalysis.com/list/pakistan-stock-exchange/",
                 Enabled = true,
                 MaxRequestsPerMinute = 2,
@@ -138,7 +144,7 @@ try
                 RetryInitialDelayMs = 3000,
                 RetryBackoffMultiplier = 2.0,
             });
-            Log.Information("Seeded PsxUniverse scraper config");
+            Log.Information("Seeded Listings scraper config (type={Type})", listingsType);
         }
 
         var orphaned = db.ScrapeRuns.Where(r => r.Status == "running").ToList();

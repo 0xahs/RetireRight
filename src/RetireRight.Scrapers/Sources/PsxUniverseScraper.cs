@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
+using RetireRight.Core.Attributes;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Constants;
 using RetireRight.Core.Enums;
@@ -16,6 +17,7 @@ namespace RetireRight.Scrapers.Sources;
 /// merges all data by symbol, then upserts stocks + stores fundamentals.
 /// Ignores ScrapeRequest.Symbols — always scrapes the full universe.
 /// </summary>
+[DataSource("PsxUniverse", PerSymbol = false)]
 public class PsxUniverseScraper : BaseScraper
 {
     private const string ListUrl = "https://stockanalysis.com/list/pakistan-stock-exchange/";
@@ -27,7 +29,6 @@ public class PsxUniverseScraper : BaseScraper
     private readonly IPriceRepository _priceRepo;
     private Guid? _currentScrapeRunId;
 
-    public override DataSourceType Source => DataSourceType.PsxUniverse;
     public override ScrapingMethod Method => ScrapingMethod.Browser;
 
     public PsxUniverseScraper(

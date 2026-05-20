@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
+using RetireRight.Core.Attributes;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Enums;
 using RetireRight.Core.Interfaces;
@@ -16,10 +17,10 @@ namespace RetireRight.Scrapers.Sources;
 ///   + _prev_year variants for each, plus fcf_prev_year alias.
 /// All values are in millions PKR — same scale as Sarmaaya. No unit conversion needed.
 /// </summary>
+[DataSource("StockAnalysis", PerSymbol = true)]
 public class StockAnalysisScraper : BaseScraper
 {
     private const string BaseUrl = "https://stockanalysis.com";
-    private const string SourceName = "StockAnalysis";
 
     private static readonly Dictionary<string, string> TargetRows = new()
     {
@@ -36,7 +37,6 @@ public class StockAnalysisScraper : BaseScraper
     private readonly IFundamentalsRepository _fundamentalsRepo;
     private Guid? _currentScrapeRunId;
 
-    public override DataSourceType Source => DataSourceType.StockAnalysis;
     public override ScrapingMethod Method => ScrapingMethod.Browser;
 
     public StockAnalysisScraper(
@@ -105,7 +105,7 @@ public class StockAnalysisScraper : BaseScraper
                     StockId = stock.Id,
                     ScrapedDate = today,
                     Periodicity = "ANN",
-                    Source = SourceName,
+                    Source = Source,
                     Data = data,
                     ScrapeRunId = _currentScrapeRunId
                 }, ct);

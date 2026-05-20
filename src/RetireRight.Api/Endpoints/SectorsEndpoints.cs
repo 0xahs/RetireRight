@@ -77,9 +77,10 @@ public static class SectorsEndpoints
             };
         }).ToList();
 
-        // Group by sector
+        // Group by sector — drop sectors with no computed coverage
         var sectors = stockData
             .GroupBy(s => s.Sector)
+            .Where(g => g.Any(s => s.CompositeScore.HasValue))
             .Select(g =>
             {
                 var items = g.ToList();

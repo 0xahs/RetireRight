@@ -4,24 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RetireRight is a .NET 10 (C# 13) CLI data pipeline for Pakistani Stock Exchange (PSX) dividend investors. It scrapes market data from sources like sarmaaya.pk, computes financial metrics, screens stocks, and exports analyzed data as JSON/markdown briefings.
+RetireRight is a .NET 10 (C# 13) HTTP API + Next.js web app for Pakistani Stock Exchange (PSX) dividend investors. It scrapes market data from sources like sarmaaya.pk, computes financial metrics, screens stocks, and exports analyzed data as JSON/markdown briefings. The legacy CLI was removed once the API exposed equivalents for every pipeline operation.
 
 ## Build & Run Commands
 
 ```bash
-# Restore, build, run (from repo root — solution file is RetireRight.slnx)
+# Restore + build (from repo root — solution file is RetireRight.slnx)
 dotnet restore
 dotnet build
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- <command> [options]
 
-# CLI commands
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- run --all              # scrape all enabled sources
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- run --source Sarmaaya   # single source
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- run --source Sarmaaya --symbols EFERT MCB  # specific symbols
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- export --format all     # export json + md
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- status                  # db health check
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- compute --all           # compute metrics for all stocks
-dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- compute --symbols MCB   # compute for specific stock
+# Run the API (the user manages this process manually — do not start/stop it for them)
+dotnet run --project src/RetireRight.Api/RetireRight.Api.csproj
+```
+
+Pipeline operations are now triggered via HTTP:
+
+```bash
+# Scrape (source = configured Name like "Profile"/"Cash Flow", or Type like "Sarmaaya", or "stock" for all per-stock sources)
+curl -X POST http://localhost:59931/api/pipeline/scrape -H "Content-Type: application/json" \
+     -d '{"source":"Profile","symbols":["EFERT","MCB"]}'
+
+# Compute metrics
+curl -X POST http://localhost:59931/api/pipeline/compute -H "Content-Type: application/json" \
+     -d '{"symbols":["MCB"]}'   # omit body for all watchlist
+
+# Export json + markdown briefing
+curl -X POST http://localhost:59931/api/export/run
+
+# Pipeline + DB status
+curl http://localhost:59931/api/pipeline/status
 ```
 
 ## EF Core Migrations
@@ -29,8 +40,8 @@ dotnet run --project src/RetireRight.Cli/RetireRight.Cli.csproj -- compute --sym
 Run from the `src/RetireRight.Infrastructure` directory:
 
 ```bash
-dotnet ef database update --startup-project ../RetireRight.Cli/RetireRight.Cli.csproj
-dotnet ef migrations add <Name> --startup-project ../RetireRight.Cli/RetireRight.Cli.csproj
+dotnet ef database update --startup-project ../RetireRight.Api/RetireRight.Api.csproj
+dotnet ef migrations add <Name> --startup-project ../RetireRight.Api/RetireRight.Api.csproj
 ```
 
 Migrations applied: `AddFundamentalsOwnershipScrapeRuns`, `FundamentalsKeyBySource`. Tables: stocks, daily_prices, dividends, stock_fundamentals, stock_ownerships, insider_transactions, index_levels, computed_metrics, raw_responses, scrape_runs, portfolio_holdings, portfolio_transactions.
@@ -40,17 +51,18 @@ Migrations applied: `AddFundamentalsOwnershipScrapeRuns`, `FundamentalsKeyBySour
 ## Architecture
 
 ```
-CLI (System.CommandLine)
-  ├── run    → Scrapers → DB (PostgreSQL via EF Core)
-  ├── export → DB → Exporters (JSON, Briefing markdown)
-  └── status → DB health & record counts
+HTTP API (RetireRight.Api, ASP.NET Core Minimal API)
+  ├── POST /api/pipeline/scrape  → PipelineJobService (background queue) → Scrapers → DB
+  ├── POST /api/pipeline/compute → PipelineJobService → MetricsEngine → DB
+  ├── POST /api/export/run       → PipelineJobService → Exporters (JSON, Briefing markdown)
+  └── GET  /api/pipeline/status  → DB health, last runs, active job
 ```
 
 **Seven projects, one dependency direction:**
 
 | Project | Role |
 |---------|------|
-| `RetireRight.Cli` | Entry point, DI setup, CLI commands. References all other projects. |
+| `RetireRight.Api` | Entry point, DI setup, HTTP endpoints, background `PipelineJobService`. References all other projects. |
 | `RetireRight.Core` | Domain models, interfaces, enums, config DTOs. No dependencies. |
 | `RetireRight.Infrastructure` | DbContext, repositories, entity config. Depends on Core. |
 | `RetireRight.Scrapers` | Playwright/AngleSharp web scraping with anti-bot (throttle, retry, stealth). Depends on Core + Infrastructure. |
@@ -58,7 +70,7 @@ CLI (System.CommandLine)
 | `RetireRight.Screening` | `StockScreener` + preset filters (dividend_safety, high_yield, growth, value, retirement_core). Depends on Core. |
 | `RetireRight.Export` | `JsonExporter` and `BriefingExporter` implementing `IExporter`. Depends on Core. |
 
-**Key interfaces** — new scrapers implement `IScraper`, new exporters implement `IExporter`, new metric calculators implement `IMetricCalculator`. All are registered in `Program.cs` DI container.
+**Key interfaces** — new scrapers implement `IScraper`, new exporters implement `IExporter`, new metric calculators implement `IMetricCalculator`. All are registered in the API's `Program.cs` DI container.
 
 ## Database
 
@@ -66,8 +78,8 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 
 ## Configuration
 
-- `src/RetireRight.Cli/appsettings.json` — defaults to **localhost** PostgreSQL (`retireright_dev`), export path, watchlist symbols, data source rate limits. Credentials fields are **empty strings** — never commit real credentials here.
-- `src/RetireRight.Cli/appsettings.local.json` — **gitignored**, contains real Sarmaaya credentials. Loaded as optional config layer over `appsettings.json`. Copy from `appsettings.json` and fill in `Email`/`Password` under the Sarmaaya `Credentials` block.
+- `src/RetireRight.Api/appsettings.json` — defaults to **localhost** PostgreSQL (`retireright_dev`), export path, watchlist symbols. Credentials fields are **empty strings** — never commit real credentials here.
+- `src/RetireRight.Api/appsettings.local.json` — **gitignored**, contains real Sarmaaya credentials. Loaded as an optional layer over `appsettings.json`. Per-source credentials also live in the `data_source_configs` table (`credential_email`/`credential_password`) and can be updated via `PUT /api/scrapers/{name}/credentials`.
 - For Supabase (production): set env var `RETIRERIGHT_RetireRight__Database__ConnectionString=<supabase_connection_string>`
 - JSONB columns (`Dictionary<string, decimal?>`) use explicit `HasConversion()` in DbContext — do NOT use `EnableDynamicJson()` (it silently drops keys on read)
 - Per-source `RateLimit` and `Retry` policies configured in `DataSources` array
@@ -75,9 +87,9 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 
 ## DI Lifetimes
 
-- **Scoped**: DbContext, all repositories
-- **Transient**: Scrapers (created fresh per command invocation)
-- **Singleton**: RequestThrottler, RetryPolicy, Exporters
+- **Scoped**: DbContext, all repositories, `PipelineOrchestrator`
+- **Transient**: Scrapers (created fresh per pipeline job)
+- **Singleton**: RequestThrottler, RetryPolicy, Exporters, `PipelineJobService`, `PipelineEventBroadcaster`
 
 ## Anti-Bot Infrastructure (Scrapers)
 
@@ -86,14 +98,16 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 ## Full Pipeline: Scrape → Store → Compute → Export
 
 ```
-run --source Sarmaaya    → SarmaayaApi fetches 10 endpoints per stock → PersistAsync writes to 7 tables
-compute --all            → Loads fundamentals + prices + dividends
-                         → FundamentalsEnricher (derives DPS, market cap, bank revenue)
-                         → 7 calculators (incl. BankingCalculator for banking/Islamic banking sectors)
-                         → OpportunityScorer (quality + value + technical signals, o1-o7 keys)
-                         → computed_metrics table
-export --format all      → Reads computed_metrics → JSON + Markdown to exports folder
+POST /api/pipeline/scrape  → SarmaayaApi fetches 10 endpoints per stock → PersistAsync writes to 7 tables
+POST /api/pipeline/compute → Loads fundamentals + prices + dividends
+                           → FundamentalsEnricher (derives DPS, market cap, bank revenue)
+                           → 7 calculators (incl. BankingCalculator for banking/Islamic banking sectors)
+                           → OpportunityScorer (quality + value + technical signals, o1-o7 keys)
+                           → computed_metrics table
+POST /api/export/run       → Reads computed_metrics → JSON + Markdown to exports folder
 ```
+
+Data source identifiers used in the `source` field on pipeline requests, `scrape_runs.source`, and the active-job payload come from `data_source_configs.name` (e.g. `Profile`, `Cash Flow`, `Dividends`, `Macro`, `Listings`). The underlying scraper enum (`Sarmaaya`, `StockAnalysis`, `PsxTerminal`, `TradingEconomics`, `PsxUniverse`) is stored in `data_source_configs.type` as the technical bridge to the C# scraper class.
 
 **Metric counts (verified 2026-05-16):**
 - Non-bank stocks: 61/77 metrics populated
@@ -112,7 +126,7 @@ export --format all      → Reads computed_metrics → JSON + Markdown to expor
 
 ## Export Data Flow
 
-The `export` command queries the DB for watchlist stocks, latest prices, computed metrics, upcoming dividends (60-day window), and macro indicators (KSE-100, PKR/USD, Brent, SBP rate). Outputs timestamped files plus a `latest.{format}` copy for stable access paths.
+`POST /api/export/run` (handled by `PipelineOrchestrator.ExportAsync`) queries the DB for watchlist stocks, latest prices, computed metrics, upcoming dividends (60-day window), and macro indicators (KSE-100, PKR/USD, Brent, SBP rate). Outputs timestamped files plus a `latest.{format}` copy for stable access paths.
 
 ## No Test Suite
 
@@ -169,7 +183,7 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 - [x] OpportunityScorer (post-processor: quality + value + technical, o1-o7 keys, bitmask flags)
 - [x] BankingCalculator: H1-H15 (NIM, cost-to-income, NPL, CAR, Tier1, LCR, ADR, ROA, ROE, etc.)
 - [x] Screening: StockScreener + 5 presets
-- [x] CLI: Program.cs + DI + 4 commands (run, export, status, compute)
+- [x] HTTP API: ASP.NET Core Minimal API with `PipelineJobService` background queue (legacy CLI commands removed)
 - [x] Full pipeline tested: 8-stock scrape → compute → export working
 - [x] Local PostgreSQL 17 database with all tables populated
 - [x] Sarmaaya key mapper: all 54 ratio keys + income + balance sheet mapped
@@ -201,19 +215,18 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 
 ## How to Add a New Scraper
 
-1. Create `src/RetireRight.Scrapers/Sources/{Name}Scraper.cs`
-2. Inherit from `BaseScraper` (for HTTP/HTML) or `BrowserScraper` (for Playwright)
-3. Implement `ScrapeAsync()` — use `ThrottleAsync()` and `RetryAsync()` from base
-4. Add `DataSourceType.{Name}` to the enum in `Core/Enums/DataSourceType.cs`
-5. Register in `Program.cs` DI switch statement under `// Scrapers`
-6. Add config entry in `appsettings.json` `DataSources` array with rate limits
+1. Create `src/RetireRight.Scrapers/Sources/{Identifier}Scraper.cs`
+2. Inherit from `BaseScraper` (for HTTP/HTML / Playwright — both routes use this base)
+3. Decorate the class with `[DataSource("{Identifier}", PerSymbol = true|false)]` from `RetireRight.Core.Attributes` — this is the only place the type identifier is hardcoded. `ScraperFactory` discovers all decorated classes at startup via reflection and `ActivatorUtilities.CreateInstance`, so no factory edit is needed
+4. Implement `ScrapeAsync()` via the `ExecuteScrapeAsync` hook — use `ThrottleAsync()` and `WithRetryAsync()` from the base
+5. Add a row to the `data_source_configs` table (via seed in `src/RetireRight.Api/Program.cs` or a migration) — the `name` column drives the user-facing label, `type` matches the attribute identifier
 
 ## How to Add a New Metric Calculator
 
 1. Create `src/RetireRight.MetricsEngine/Calculators/{Name}Calculator.cs`
 2. Implement `IMetricCalculator` — return `Dictionary<string, decimal?>` with metric keys
 3. Use naming convention: `{category_letter}{number}_{snake_case_name}` (e.g., `h1_nim` for banking NIM)
-4. Register in `Program.cs` DI as `IMetricCalculator`
+4. Register in `src/RetireRight.Api/Program.cs` DI as `IMetricCalculator`
 5. Document the metric in `dividend-metrics-reference.md`
 
 ## How to Add a Screen Preset

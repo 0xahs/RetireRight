@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using RetireRight.Core.Attributes;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Enums;
 using RetireRight.Core.Interfaces;
@@ -14,7 +15,11 @@ public abstract class BaseScraper : IScraper
     protected readonly RetryPolicy RetryPolicy;
     protected readonly DataSourceOptions SourceConfig;
 
-    public abstract DataSourceType Source { get; }
+    private readonly DataSourceAttribute _meta;
+
+    public string Source => _meta.Identifier;
+    public bool IsPerSymbol => _meta.PerSymbol;
+
     public abstract ScrapingMethod Method { get; }
 
     protected BaseScraper(
@@ -27,6 +32,12 @@ public abstract class BaseScraper : IScraper
         Throttler = throttler;
         RetryPolicy = retryPolicy;
         SourceConfig = sourceConfig;
+
+        _meta = GetType().GetCustomAttributes(typeof(DataSourceAttribute), inherit: false)
+                        .Cast<DataSourceAttribute>()
+                        .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"{GetType().Name} must be decorated with [DataSource(\"...\")] — this is the only place the type identifier should live.");
     }
 
     public async Task<ScrapeResult> ScrapeAsync(ScrapeRequest request, CancellationToken ct = default)
@@ -73,7 +84,7 @@ public abstract class BaseScraper : IScraper
 
     protected async Task ThrottleAsync(CancellationToken ct)
     {
-        await Throttler.ThrottleAsync(Source.ToString(), SourceConfig.RateLimit, ct);
+        await Throttler.ThrottleAsync(Source, SourceConfig.RateLimit, ct);
     }
 
     protected async Task<T> WithRetryAsync<T>(Func<Task<T>> action, string operation, CancellationToken ct)

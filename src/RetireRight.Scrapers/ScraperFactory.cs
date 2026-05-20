@@ -1,25 +1,51 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using RetireRight.Core.Attributes;
+using RetireRight.Core.Configuration;
 using RetireRight.Core.Interfaces;
-using RetireRight.Scrapers.AntiBot;
-using RetireRight.Scrapers.Sources;
 
 namespace RetireRight.Scrapers;
 
+/// <summary>
+/// Builds scrapers from <see cref="DataSourceConfig"/> rows.
+/// Scraper classes are discovered by scanning this assembly for <see cref="DataSourceAttribute"/>,
+/// so adding a new scraper requires only the attribute — no edits to the factory.
+/// </summary>
 public class ScraperFactory(IScraperConfigRepository configRepo, IServiceProvider sp)
 {
-    // Per-stock scrapers (exclude universe/macro which don't operate per-symbol)
-    private static readonly HashSet<string> UniverseAndMacroTypes =
-        new(StringComparer.OrdinalIgnoreCase) { "PsxUniverse", "TradingEconomics", "Macro" };
+    private sealed record Registration(Type ClrType, bool PerSymbol);
+
+    // Reflection-built map: config.type (case-insensitive) -> scraper class + per-symbol flag.
+    private static readonly IReadOnlyDictionary<string, Registration> ByIdentifier = BuildRegistry();
+
+    private static Dictionary<string, Registration> BuildRegistry()
+    {
+        var entries = typeof(ScraperFactory).Assembly
+            .GetTypes()
+            .Where(t => !t.IsAbstract && typeof(IScraper).IsAssignableFrom(t))
+            .Select(t => (Type: t, Attr: t.GetCustomAttributes(typeof(DataSourceAttribute), false)
+                                          .Cast<DataSourceAttribute>()
+                                          .FirstOrDefault()))
+            .Where(x => x.Attr is not null);
+
+        var map = new Dictionary<string, Registration>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (type, attr) in entries)
+        {
+            if (map.ContainsKey(attr!.Identifier))
+                throw new InvalidOperationException(
+                    $"Duplicate [DataSource(\"{attr.Identifier}\")] — {type.Name} collides with {map[attr.Identifier].ClrType.Name}.");
+            map[attr.Identifier] = new Registration(type, attr.PerSymbol);
+        }
+        return map;
+    }
 
     public async Task<List<IScraper>> CreateEnabledAsync(string? sourceFilter = null, CancellationToken ct = default)
     {
         var configs = sourceFilter is null
             ? await configRepo.GetEnabledAsync(ct)
             : sourceFilter.Equals("stock", StringComparison.OrdinalIgnoreCase)
-                // "stock" = all per-stock scrapers, skip universe/macro
+                // "stock" = all per-stock scrapers, skip whole-universe / macro scrapers.
                 ? (await configRepo.GetEnabledAsync(ct))
-                    .Where(c => !UniverseAndMacroTypes.Contains(c.Type))
+                    .Where(c => ByIdentifier.TryGetValue(c.Type, out var r) && r.PerSymbol)
                     .ToList()
                 : (await configRepo.GetAllAsync(ct))
                     .Where(c => c.Name.Equals(sourceFilter, StringComparison.OrdinalIgnoreCase)
@@ -35,45 +61,10 @@ public class ScraperFactory(IScraperConfigRepository configRepo, IServiceProvide
         return scrapers;
     }
 
-    private IScraper? Create(Core.Configuration.DataSourceOptions opts)
+    private IScraper? Create(DataSourceOptions opts)
     {
-        var lf = sp.GetRequiredService<ILoggerFactory>();
-        var throttler = sp.GetRequiredService<RequestThrottler>();
-        var retry = sp.GetRequiredService<RetryPolicy>();
-
-        return opts.Type.ToLowerInvariant() switch
-        {
-            "sarmaaya" => new SarmaayaScraper(
-                lf.CreateLogger<SarmaayaScraper>(), lf, throttler, retry, opts,
-                sp.GetRequiredService<IStockRepository>(),
-                sp.GetRequiredService<IPriceRepository>(),
-                sp.GetRequiredService<IRawResponseRepository>(),
-                sp.GetRequiredService<IFundamentalsRepository>(),
-                sp.GetRequiredService<IOwnershipRepository>(),
-                sp.GetRequiredService<IInsiderTransactionRepository>(),
-                sp.GetRequiredService<IIndexLevelRepository>()),
-
-            "stockanalysis" => new StockAnalysisScraper(
-                lf.CreateLogger<StockAnalysisScraper>(), throttler, retry, opts,
-                sp.GetRequiredService<IStockRepository>(),
-                sp.GetRequiredService<IFundamentalsRepository>()),
-
-            "psxterminal" => new PsxTerminalScraper(
-                lf.CreateLogger<PsxTerminalScraper>(), throttler, retry, opts,
-                sp.GetRequiredService<IStockRepository>(),
-                sp.GetRequiredService<IDividendRepository>()),
-
-            "psxuniverse" => new PsxUniverseScraper(
-                lf.CreateLogger<PsxUniverseScraper>(), throttler, retry, opts,
-                sp.GetRequiredService<IStockRepository>(),
-                sp.GetRequiredService<IFundamentalsRepository>(),
-                sp.GetRequiredService<IPriceRepository>()),
-
-            "tradingeconomics" or "macro" => new MacroScraper(
-                lf.CreateLogger<MacroScraper>(), throttler, retry, opts,
-                sp.GetRequiredService<IMacroRepository>()),
-
-            _ => null
-        };
+        if (!ByIdentifier.TryGetValue(opts.Type, out var reg)) return null;
+        // ActivatorUtilities resolves all other constructor args from DI; opts is passed as extra.
+        return (IScraper)ActivatorUtilities.CreateInstance(sp, reg.ClrType, opts);
     }
 }

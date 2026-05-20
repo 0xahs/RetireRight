@@ -4,7 +4,12 @@ namespace RetireRight.Core.Interfaces;
 
 public interface IScraper : IAsyncDisposable
 {
-    DataSourceType Source { get; }
+    /// <summary>Type identifier — matches <c>data_source_configs.type</c> (e.g. "Sarmaaya").</summary>
+    string Source { get; }
+
+    /// <summary>True for per-stock scrapers, false for universe/macro.</summary>
+    bool IsPerSymbol { get; }
+
     ScrapingMethod Method { get; }
     Task<ScrapeResult> ScrapeAsync(ScrapeRequest request, CancellationToken ct = default);
     Task<bool> HealthCheckAsync(CancellationToken ct = default);
@@ -21,7 +26,7 @@ public record ScrapeRequest
 
 public record ScrapeResult
 {
-    public DataSourceType Source { get; init; }
+    public string Source { get; init; } = "";
     public bool Success { get; init; }
     public int RecordsScraped { get; init; }
     public int RecordsFailed { get; init; }

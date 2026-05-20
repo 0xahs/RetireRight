@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
+using RetireRight.Core.Attributes;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Enums;
 using RetireRight.Core.Interfaces;
@@ -19,17 +20,16 @@ namespace RetireRight.Scrapers.Sources;
 /// The response uses SvelteKit's flat deduplication format: a data[] array where
 /// integer values inside objects/arrays are indices into that array.
 /// </summary>
+[DataSource("PsxTerminal", PerSymbol = true)]
 public class PsxTerminalScraper : BaseScraper
 {
     private const string BaseUrl = "https://psxterminal.com";
-    private const string SourceName = "PsxTerminal";
 
     private readonly IStockRepository _stockRepo;
     private readonly IDividendRepository _dividendRepo;
     private readonly HttpClient _http;
     private Guid? _currentScrapeRunId;
 
-    public override DataSourceType Source => DataSourceType.PsxTerminal;
     public override ScrapingMethod Method => ScrapingMethod.Api;
 
     public PsxTerminalScraper(
@@ -171,7 +171,7 @@ public class PsxTerminalScraper : BaseScraper
                 Dps = dps,
                 Year = year,
                 DividendType = "regular",
-                Source = SourceName,
+                Source = Source,
             });
         }
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using RetireRight.Core.Attributes;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Enums;
 using RetireRight.Core.Interfaces;
@@ -20,6 +21,7 @@ namespace RetireRight.Scrapers.Sources;
 /// The actual data fetching is done by <see cref="SarmaayaApi"/> and
 /// <see cref="SarmaayaBrowser"/> — standalone, reusable clients.
 /// </summary>
+[DataSource("Sarmaaya", PerSymbol = true)]
 public class SarmaayaScraper : BaseScraper
 {
     private readonly IStockRepository _stockRepo;
@@ -33,7 +35,6 @@ public class SarmaayaScraper : BaseScraper
     private FallbackChain? _chain;
     private Guid? _currentScrapeRunId;
 
-    public override DataSourceType Source => DataSourceType.Sarmaaya;
     public override ScrapingMethod Method => ScrapingMethod.Api;
 
     public SarmaayaScraper(
@@ -324,7 +325,7 @@ public class SarmaayaScraper : BaseScraper
         {
             await _rawRepo.SaveAsync(new RawApiResponse
             {
-                Source = "Sarmaaya",
+                Source = Source,
                 Endpoint = raw.Endpoint,
                 Symbol = data.Symbol,
                 ResponseBody = raw.Body,

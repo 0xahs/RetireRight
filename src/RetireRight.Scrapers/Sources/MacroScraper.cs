@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using RetireRight.Core.Attributes;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.Enums;
 using RetireRight.Core.Interfaces;
@@ -19,12 +20,12 @@ namespace RetireRight.Scrapers.Sources;
 ///   Brent Crude  — Yahoo Finance unofficial v8 API (free, no key)
 ///   SBP Rate     — sbp.org.pk monetary policy page (HTML, changes ~6x/year)
 /// </summary>
+[DataSource("TradingEconomics", PerSymbol = false)]
 public class MacroScraper : BaseScraper
 {
     private readonly IMacroRepository _macroRepo;
     private readonly HttpClient _http;
 
-    public override DataSourceType Source => DataSourceType.TradingEconomics; // closest enum for macro
     public override ScrapingMethod Method => ScrapingMethod.Api;
 
     public MacroScraper(

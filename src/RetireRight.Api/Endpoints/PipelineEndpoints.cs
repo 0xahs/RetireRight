@@ -27,13 +27,6 @@ public static class PipelineEndpoints
         settingsGroup.MapPut("/schedule", UpdateScheduleAsync).WithName("UpdateSchedule");
     }
 
-    private static string FriendlySourceName(string source) => source switch
-    {
-        "TradingEconomics" => "Macro",
-        "PsxTerminal" => "Dividends",
-        _ => source
-    };
-
     private static async Task<IResult> GetStatusAsync(
         PipelineJobService jobService,
         PipelineEventBroadcaster broadcaster,
@@ -46,6 +39,7 @@ public static class PipelineEndpoints
             .Take(30)
             .ToListAsync(ct);
 
+        // ScrapeRun.Source now stores the DB-side config Name (set by PipelineOrchestrator).
         var runsBySource = recentRuns.GroupBy(r => r.Source).ToDictionary(g => g.Key, g => g.First());
 
         var configuredSources = await scraperConfigs.GetAllAsync(ct);
@@ -58,7 +52,7 @@ public static class PipelineEndpoints
                     ? latest.CompletedAt.Value - latest.StartedAt
                     : (TimeSpan?)null;
                 return new SourceStatusDto(
-                    Name: FriendlySourceName(ds.Name),
+                    Name: ds.Name,
                     Key: ds.Name,
                     Description: ds.Description,
                     Status: ds.Enabled ? latest.Status : "disabled",
@@ -68,7 +62,7 @@ public static class PipelineEndpoints
                     Duration: duration);
             }
             return new SourceStatusDto(
-                Name: FriendlySourceName(ds.Name),
+                Name: ds.Name,
                 Key: ds.Name,
                 Description: ds.Description,
                 Status: ds.Enabled ? "never" : "disabled",

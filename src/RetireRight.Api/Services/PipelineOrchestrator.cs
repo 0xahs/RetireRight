@@ -24,6 +24,7 @@ public sealed class PipelineOrchestrator
     private readonly IFundamentalsRepository _fundamentalsRepo;
     private readonly IComputedMetricsRepository _metricsRepo;
     private readonly IScrapeRunRepository _scrapeRunRepo;
+    private readonly IScraperConfigRepository _scraperConfigRepo;
     private readonly RetireRightDbContext _db;
     private readonly ScraperFactory _scraperFactory;
     private readonly EngineService _engine;
@@ -38,6 +39,7 @@ public sealed class PipelineOrchestrator
         IFundamentalsRepository fundamentalsRepo,
         IComputedMetricsRepository metricsRepo,
         IScrapeRunRepository scrapeRunRepo,
+        IScraperConfigRepository scraperConfigRepo,
         RetireRightDbContext db,
         ScraperFactory scraperFactory,
         EngineService engine,
@@ -51,6 +53,7 @@ public sealed class PipelineOrchestrator
         _fundamentalsRepo = fundamentalsRepo;
         _metricsRepo = metricsRepo;
         _scrapeRunRepo = scrapeRunRepo;
+        _scraperConfigRepo = scraperConfigRepo;
         _db = db;
         _scraperFactory = scraperFactory;
         _engine = engine;
@@ -74,15 +77,19 @@ public sealed class PipelineOrchestrator
 
         var scrapers = await _scraperFactory.CreateEnabledAsync(sourceFilter, ct);
 
+        // Resolve scraper type -> user-facing name from DB so nothing here hardcodes "Sarmaaya" etc.
+        var configs = await _scraperConfigRepo.GetAllAsync(ct);
+        var nameByType = configs.ToDictionary(c => c.Type, c => c.Name, StringComparer.OrdinalIgnoreCase);
+
         foreach (var scraper in scrapers)
         {
-            var isMacro      = scraper.Source == RetireRight.Core.Enums.DataSourceType.TradingEconomics;
-            var isUniverse   = scraper.Source == RetireRight.Core.Enums.DataSourceType.PsxUniverse;
+            var sourceName    = nameByType.TryGetValue(scraper.Source, out var n) ? n : scraper.Source;
+            var symbolsForRun = scraper.IsPerSymbol ? targetSymbols.Length : 0;
             var run = await _scrapeRunRepo.CreateAsync(new ScrapeRun
             {
-                Source = scraper.Source.ToString(),
+                Source = sourceName,
                 Mode = mode,
-                SymbolCount = (isMacro || isUniverse) ? 0 : targetSymbols.Length
+                SymbolCount = symbolsForRun
             }, ct);
 
             try
@@ -93,16 +100,20 @@ public sealed class PipelineOrchestrator
                     ScrapeRunId = run.Id
                 };
 
+                // Emit pre-start progress so UI reflects "currently running" not "just finished".
+                onProgress?.Invoke(run.Source, 0, symbolsForRun);
+
                 var result = await scraper.ScrapeAsync(request, ct);
 
                 run.RecordsScraped = result.RecordsScraped;
                 run.RecordsFailed = result.RecordsFailed;
                 run.Status = result.Success ? "completed" : "failed";
                 run.CompletedAt = DateTime.UtcNow;
-                if (isUniverse) run.SymbolCount = result.RecordsScraped;
+                // Whole-universe scrapers don't know their record count up-front — backfill.
+                if (!scraper.IsPerSymbol) run.SymbolCount = result.RecordsScraped;
 
-                onProgress?.Invoke(run.Source, result.RecordsScraped,
-                    isUniverse ? result.RecordsScraped : targetSymbols.Length);
+                var total = scraper.IsPerSymbol ? targetSymbols.Length : result.RecordsScraped;
+                onProgress?.Invoke(run.Source, result.RecordsScraped, total);
             }
             catch (Exception ex)
             {
@@ -353,7 +364,7 @@ public sealed class PipelineOrchestrator
                 PkrUsd = pkrUsd?.Value,
                 BrentCrude = brent?.Value,
                 SbpRate = sbpRate?.Value,
-                AsOf = DateTime.UtcNow
+                AsOf = DateTimeOffset.Now
             },
             Stocks = stockSnapshots,
             Dividends = dividendSnapshots,

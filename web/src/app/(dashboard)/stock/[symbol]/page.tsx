@@ -15,30 +15,52 @@ import { VerdictStrip } from '@/components/signal/verdict-strip';
 import { AiMemoTab } from '@/components/signal/ai-memo-tab';
 import { CompareButton } from '@/components/compare/compare-sticky-bar';
 
+type ScrapeStep = { label: string; phase: 'scrape' | 'compute' };
+
 function ScrapeButton({ symbol }: { symbol: string }) {
   const [phase, setPhase] = useState<'idle' | 'running' | 'done'>('idle');
   const [hovered, setHovered] = useState(false);
+  const [steps, setSteps] = useState<ScrapeStep[]>([]);
   const wasActive = useRef(false);
   const qc = useQueryClient();
   const { mutateAsync: triggerScrape } = useTriggerScrape();
   const { mutateAsync: triggerCompute } = useTriggerCompute();
   const { data: pipelineStatus } = usePipelineStatus();
 
+  const activeJobType   = pipelineStatus?.activeJob?.jobType ?? null;
+  const activeSymbol    = pipelineStatus?.activeJob?.currentSymbol ?? null;
+  const hasActiveJob    = pipelineStatus?.activeJob != null;
+  const queueDepth      = pipelineStatus?.queueDepth ?? 0;
+
+  // Append a step whenever the (jobType, currentSymbol) tuple changes.
+  useEffect(() => {
+    if (phase !== 'running' || !activeSymbol || !activeJobType) return;
+    const jobPhase: 'scrape' | 'compute' = activeJobType.toLowerCase() === 'compute' ? 'compute' : 'scrape';
+    const label = jobPhase === 'compute' ? 'Compute' : activeSymbol;
+    setSteps(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last.label === label && last.phase === jobPhase) return prev;
+      return [...prev, { label, phase: jobPhase }];
+    });
+  }, [phase, activeJobType, activeSymbol]);
+
+  // Completion detector — guarded by queueDepth so the gap between scrape and compute doesn't trip it.
   useEffect(() => {
     if (phase !== 'running') return;
-    if (pipelineStatus?.activeJob) {
+    if (hasActiveJob) {
       wasActive.current = true;
-    } else if (wasActive.current) {
+    } else if (wasActive.current && queueDepth === 0) {
       wasActive.current = false;
       qc.invalidateQueries({ queryKey: ['stocks', symbol] });
       setPhase('done');
-      setTimeout(() => setPhase('idle'), 4000);
+      setTimeout(() => { setPhase('idle'); setSteps([]); }, 4000);
     }
-  }, [phase, pipelineStatus?.activeJob, symbol, qc]);
+  }, [phase, hasActiveJob, queueDepth, symbol, qc]);
 
   async function handleScrape() {
     if (phase === 'running') return;
     wasActive.current = false;
+    setSteps([]);
     setPhase('running');
     try {
       await triggerScrape({ symbols: [symbol], source: 'stock' });
@@ -54,29 +76,60 @@ function ScrapeButton({ symbol }: { symbol: string }) {
       : {}
     : {};
 
+  const currentStep = steps[steps.length - 1] ?? null;
+  const runningLabel = currentStep
+    ? currentStep.phase === 'compute'
+      ? `Computing ${symbol}`
+      : `Scraping ${symbol} · ${currentStep.label}`
+    : `Scraping ${symbol}…`;
+
   return (
-    <button
-      onClick={handleScrape}
-      disabled={phase === 'running'}
-      onMouseEnter={() => phase === 'idle' && setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={cn(
-        'w-full flex items-center justify-center gap-3 px-4 py-2.5 border-b border-x border-t-0 font-bold uppercase tracking-[0.18em] text-[11px] transition-all duration-150',
-        phase === 'running' && 'border-amber/30 bg-amber/5 text-amber cursor-not-allowed',
-        phase === 'done'    && 'border-cyan-pos/30 bg-cyan-pos/5 text-cyan-pos cursor-default',
-        phase === 'idle'    && 'border-border bg-card text-warm-dim cursor-pointer',
+    <div className="flex flex-col">
+      <button
+        onClick={handleScrape}
+        disabled={phase === 'running'}
+        onMouseEnter={() => phase === 'idle' && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={cn(
+          'w-full flex items-center justify-center gap-3 px-4 py-2.5 border-b border-x border-t-0 font-bold uppercase tracking-[0.18em] text-[11px] transition-all duration-150',
+          phase === 'running' && 'border-amber/30 bg-amber/5 text-amber cursor-not-allowed',
+          phase === 'done'    && 'border-cyan-pos/30 bg-cyan-pos/5 text-cyan-pos cursor-default',
+          phase === 'idle'    && 'border-border bg-card text-warm-dim cursor-pointer',
+        )}
+        style={idleStyle}
+      >
+        {phase === 'running' && <span className="animate-spin text-[13px]">⟳</span>}
+        {phase === 'done'    && <span className="text-[13px]">✓</span>}
+        {phase === 'idle'    && <span className="text-[13px]">↓</span>}
+        <span>
+          {phase === 'running' ? runningLabel :
+           phase === 'done'    ? `${symbol} refreshed` :
+                                 `Scrape ${symbol}`}
+        </span>
+      </button>
+
+      {phase === 'running' && steps.length > 0 && (
+        <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1 px-4 py-1.5 border-b border-x border-amber/20 bg-amber/[0.025]">
+          {steps.map((step, i) => {
+            const isLast = i === steps.length - 1;
+            return (
+              <div key={`${step.label}-${i}`} className="flex items-center gap-1.5">
+                {i > 0 && <span className="text-warm-dim text-[10px]">›</span>}
+                <span className={cn(
+                  'flex items-center gap-1.5 text-[9px] uppercase tracking-[0.15em] font-bold',
+                  isLast ? 'text-amber' : 'text-cyan-pos',
+                )}>
+                  {isLast
+                    ? <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber animate-pulse" />
+                    : <span className="text-cyan-pos text-[10px] leading-none">✓</span>}
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       )}
-      style={idleStyle}
-    >
-      {phase === 'running' && <span className="animate-spin text-[13px]">⟳</span>}
-      {phase === 'done'    && <span className="text-[13px]">✓</span>}
-      {phase === 'idle'    && <span className="text-[13px]">↓</span>}
-      <span>
-        {phase === 'running' ? `Scraping ${symbol}…` :
-         phase === 'done'    ? `${symbol} refreshed` :
-                               `Scrape ${symbol}`}
-      </span>
-    </button>
+    </div>
   );
 }
 
