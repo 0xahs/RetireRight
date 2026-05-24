@@ -169,14 +169,18 @@ public class PsxTerminalScraper : BaseScraper
             if (exDateStr is null) continue;
             if (!DateOnly.TryParse(exDateStr, out var exDate)) continue;
 
-            // amount is stored as an integer or decimal — NOT as a further index
-            decimal dps;
+            // amount is stored as an integer or decimal — NOT as a further index.
+            // Values here are NET-of-WHT (verified live: PT 35.7 vs SA gross 42.0 = ×0.85).
+            // Gross up so the row stores the same convention every other source uses.
+            decimal netDps;
             if (amountNode is JsonValue amtVal)
             {
-                try { dps = amtVal.GetValue<decimal>(); }
+                try { netDps = amtVal.GetValue<decimal>(); }
                 catch { continue; }
             }
             else continue; // object (corrupt entry) — skip
+            if (netDps <= 0) continue;
+            var dps = Math.Round(netDps / (1m - 0.15m), 4);
 
             DateOnly? payDate = payDateStr is not null && DateOnly.TryParse(payDateStr, out var pd) ? pd : null;
             DateOnly? recDate = recDateStr is not null && DateOnly.TryParse(recDateStr, out var rd) ? rd : null;

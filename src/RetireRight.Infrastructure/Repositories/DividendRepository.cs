@@ -29,12 +29,24 @@ public class DividendRepository : IDividendRepository
             .OrderByDescending(d => d.ExDate)
             .ToListAsync(ct);
 
+    // Sources don't always agree on the canonical ex-date for the same dividend event
+    // — e.g. StockAnalysis records ATLH Jun 6 2025, PsxTerminal records Jun 5 2025 (same
+    // event, both have payment_date Jun 25). Treat any existing row within ±this many
+    // days for the same stock as the same event so we don't store duplicates.
+    private const int DateMatchWindowDays = 2;
+
     public async Task UpsertAsync(Dividend dividend, CancellationToken ct = default, bool insertOnly = false)
     {
+        // Look first for an exact (StockId, ExDate) match (the unique key); fall back to
+        // a nearby-date match in the ±DateMatchWindowDays window for cross-source dedup.
+        var lo = dividend.ExDate.AddDays(-DateMatchWindowDays);
+        var hi = dividend.ExDate.AddDays(+DateMatchWindowDays);
         var existing = await _db.Dividends
-            .FirstOrDefaultAsync(d =>
-                d.StockId == dividend.StockId &&
-                d.ExDate == dividend.ExDate, ct);
+            .Where(d => d.StockId == dividend.StockId && d.ExDate >= lo && d.ExDate <= hi)
+            // Exact match first if present, otherwise the closest neighbour
+            .OrderBy(d => d.ExDate == dividend.ExDate ? 0 : 1)
+            .ThenBy(d => d.ExDate)
+            .FirstOrDefaultAsync(ct);
 
         if (existing is null)
         {
