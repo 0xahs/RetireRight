@@ -20,7 +20,11 @@ namespace RetireRight.Scrapers.Sources;
 /// The response uses SvelteKit's flat deduplication format: a data[] array where
 /// integer values inside objects/arrays are indices into that array.
 /// </summary>
-[DataSource("PsxTerminal", PerSymbol = true, Order = 40)]
+// RETIRED 2026-05-25: superseded by StockAnalysisDividendsScraper, which scrapes
+// the same fields (ex-date, payment, record, dps) from stockanalysis.com/quote/psx/
+// {TICKER}/dividend/ and works universe-wide rather than watchlist-only.
+// Attribute removed → ScraperFactory no longer registers this class. Class kept
+// for reference; Program.cs startup removes the data_source_configs row.
 public class PsxTerminalScraper : BaseScraper
 {
     private const string BaseUrl = "https://psxterminal.com";

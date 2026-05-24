@@ -175,6 +175,31 @@ try
             Log.Information("Seeded Dividends History scraper config (type={Type})", divHistType);
         }
 
+        // Retire PsxTerminal — superseded by StockAnalysisDividends (per-stock /dividend/ page).
+        // Remove the data_source_configs row so it disappears from the Pipeline UI. Idempotent.
+        var psxTermConfig = (await configRepo.GetAllAsync()).FirstOrDefault(c => c.Type == "PsxTerminal");
+        if (psxTermConfig is not null)
+        {
+            db.DataSourceConfigs.Remove(psxTermConfig);
+            db.SaveChanges();
+            Log.Information("Removed retired PsxTerminal scraper config");
+        }
+
+        // One-time cleanup: forward-dated calendar rows seeded by the universe scraper had
+        // wrong DPS (the universe "Div. ($)" column is annual trailing total, not per-event).
+        // Delete them so the calendar is clean; per-stock StockAnalysisDividends will refill
+        // when run for the relevant symbols.
+        var todayOnly = DateOnly.FromDateTime(DateTime.UtcNow);
+        var staleSeeds = db.Dividends
+            .Where(d => d.Source == "StockAnalysisList" && d.ExDate >= todayOnly)
+            .ToList();
+        if (staleSeeds.Count > 0)
+        {
+            db.Dividends.RemoveRange(staleSeeds);
+            db.SaveChanges();
+            Log.Information("Removed {Count} stale universe-seeded calendar rows", staleSeeds.Count);
+        }
+
         var orphaned = db.ScrapeRuns.Where(r => r.Status == "running").ToList();
         foreach (var run in orphaned)
         {
