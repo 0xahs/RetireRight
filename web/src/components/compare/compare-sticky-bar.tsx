@@ -102,7 +102,7 @@ export function CompareButton({ symbol, variant = 'inline', className }: Compare
           className,
         )}
       >
-        +
+        {active ? '✓' : '+'}
       </button>
     );
   }

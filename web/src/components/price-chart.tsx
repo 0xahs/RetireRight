@@ -57,6 +57,12 @@ export function PriceChart({ data, symbol }: PriceChartProps) {
     const GRID  = 'rgba(255,255,255,0.04)';
     const TEXT  = 'rgba(255,255,255,0.35)';
     const BORDER = 'rgba(255,255,255,0.08)';
+    // Match the app palette: cyan-pos (--verdict-acc) for up, destructive for down,
+    // so the candles agree with the change % rendered in the header above.
+    const UP   = 'oklch(0.79 0.13 180)';
+    const DOWN = 'oklch(0.68 0.22 25)';
+    const UP_FILL   = 'oklch(0.79 0.13 180 / 0.35)';
+    const DOWN_FILL = 'oklch(0.68 0.22 25 / 0.35)';
 
     // ── Main price chart ─────────────────────────────────────
     const chart = createChart(container, {
@@ -94,12 +100,12 @@ export function PriceChart({ data, symbol }: PriceChartProps) {
 
     if (hasOhlc) {
       priceSeries = chart.addSeries(CandlestickSeries, {
-        upColor:        '#10b981',
-        downColor:      '#ef4444',
-        borderUpColor:  '#10b981',
-        borderDownColor:'#ef4444',
-        wickUpColor:    '#10b981',
-        wickDownColor:  '#ef4444',
+        upColor:        UP,
+        downColor:      DOWN,
+        borderUpColor:  UP,
+        borderDownColor:DOWN,
+        wickUpColor:    UP,
+        wickDownColor:  DOWN,
       });
       priceSeries.setData(
         filtered.map(p => ({
@@ -112,7 +118,7 @@ export function PriceChart({ data, symbol }: PriceChartProps) {
       );
     } else {
       priceSeries = chart.addSeries(LineSeries, {
-        color:     '#10b981',
+        color:     UP,
         lineWidth: 1,
         priceLineVisible: false,
       });
@@ -185,7 +191,7 @@ export function PriceChart({ data, symbol }: PriceChartProps) {
             return {
               time:  String(p.date) as import('lightweight-charts').Time,
               value: p.volume!,
-              color: up ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
+              color: up ? UP_FILL : DOWN_FILL,
             };
           })
       );
