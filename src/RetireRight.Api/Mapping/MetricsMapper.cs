@@ -45,6 +45,21 @@ public static class MetricsMapper
                 PriceVs52wHigh: m.GetValueOrDefault("c20_price_vs_52w_high"),
                 PriceVs52wLow: m.GetValueOrDefault("c21_price_vs_52w_low")),
 
+            GrowthQuality: new GrowthQualityMetrics(
+                SustainableGrowthRate: m.GetValueOrDefault("e17_sustainable_growth_rate"),
+                Roce: m.GetValueOrDefault("e4_roce"),
+                EbitdaMargin: m.GetValueOrDefault("e9_ebitda_margin"),
+                EbitMargin: m.GetValueOrDefault("e16_ebit_margin"),
+                PlowbackRatio: m.GetValueOrDefault("e18_plowback_ratio"),
+                CapexToRevenue: m.GetValueOrDefault("e19_capex_to_revenue"),
+                CapexToOcf: m.GetValueOrDefault("e20_capex_to_ocf"),
+                InventoryTurnover: m.GetValueOrDefault("e12_inventory_turnover"),
+                RevenuePerEmployee: m.GetValueOrDefault("e13_revenue_per_employee"),
+                ProfitPerEmployee: m.GetValueOrDefault("e14_profit_per_employee"),
+                DupontRoe: m.GetValueOrDefault("e15_dupont_roe"),
+                TaxBurden: m.GetValueOrDefault("e16_tax_burden"),
+                InterestBurden: m.GetValueOrDefault("e16_interest_burden")),
+
             Risk: new RiskMetrics(
                 Volatility1y: m.GetValueOrDefault("f2_annual_volatility"),
                 MaxDrawdown: m.GetValueOrDefault("f3_max_drawdown"),

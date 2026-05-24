@@ -373,6 +373,14 @@ export default function StockPage() {
               { label: 'EPS GROWTH 1Y',        value: formatPct(metrics.dividendGrowth.epsGrowth1y),     tone: growthTone(metrics.dividendGrowth.epsGrowth1y) },
               { label: 'REVENUE GROWTH 1Y',    value: formatPct(metrics.dividendGrowth.revenueGrowth1y), tone: growthTone(metrics.dividendGrowth.revenueGrowth1y) },
             ]} />
+            <MetricGroup title="GROWTH QUALITY" metrics={[
+              { label: 'SUSTAINABLE GROWTH',  value: formatPct(metrics.growthQuality.sustainableGrowthRate), tone: growthTone(metrics.growthQuality.sustainableGrowthRate) },
+              { label: 'ROCE',               value: formatPct(metrics.growthQuality.roce),         tone: roceTone(metrics.growthQuality.roce) },
+              { label: 'EBITDA MARGIN',      value: formatPct(metrics.growthQuality.ebitdaMargin) },
+              { label: 'PLOWBACK',           value: metrics.growthQuality.plowbackRatio != null ? `${(metrics.growthQuality.plowbackRatio * 100).toFixed(0)}%` : '—' },
+              { label: 'CAPEX / REVENUE',    value: formatPct(metrics.growthQuality.capexToRevenue), tone: capexTone(metrics.growthQuality.capexToRevenue) },
+              { label: 'CAPEX / OCF',        value: formatPct(metrics.growthQuality.capexToOcf),     tone: capexOcfTone(metrics.growthQuality.capexToOcf) },
+            ]} />
             <MetricGroup title="OPPORTUNITY SIGNALS" metrics={[
               { label: 'QUALITY SIGNAL',      value: formatScore(metrics.opportunity.qualitySignal),     tone: scoreTone(metrics.opportunity.qualitySignal) },
               { label: 'VALUE SIGNAL',        value: formatScore(metrics.opportunity.valueSignal),       tone: scoreTone(metrics.opportunity.valueSignal) },
@@ -558,6 +566,31 @@ function growthTone(v: number | null | undefined): string {
   if (v >= 15) return 'text-cyan-pos';
   if (v >= 5)  return 'text-amber';
   if (v >= 0)  return 'text-warm-muted';
+  return 'text-warn';
+}
+
+/* Growth-quality bands */
+function roceTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v >= 15) return 'text-cyan-pos';
+  if (v >= 10) return 'text-amber';
+  if (v > 0)   return 'text-warm-muted';
+  return 'text-warn';
+}
+
+// CapEx as % of revenue — capital-light is better (more FCF left for dividends)
+function capexTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < 10) return 'text-cyan-pos';
+  if (v < 30) return 'text-amber';
+  return 'text-warn';
+}
+
+// CapEx as % of OCF — high means little operating cash left after reinvestment
+function capexOcfTone(v: number | null | undefined): string {
+  if (v == null) return 'text-warm-dim';
+  if (v < 40) return 'text-cyan-pos';
+  if (v < 70) return 'text-amber';
   return 'text-warn';
 }
 

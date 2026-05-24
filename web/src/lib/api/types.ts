@@ -168,6 +168,7 @@ export interface StockMetricsDto {
   dividendSafety: DividendSafetyMetrics;
   dividendGrowth: DividendGrowthMetrics;
   valuation: ValuationMetrics;
+  growthQuality: GrowthQualityMetrics;
   risk: RiskMetrics;
   banking: BankingMetrics | null;
   opportunity: OpportunityMetrics;
@@ -199,6 +200,22 @@ export interface ValuationMetrics {
   marginOfSafety: number | null;
   earningsYield: number | null;
   grahamNumber: number | null;
+}
+
+export interface GrowthQualityMetrics {
+  sustainableGrowthRate: number | null;  // e17, %
+  roce: number | null;                    // e4, %
+  ebitdaMargin: number | null;            // e9, %
+  ebitMargin: number | null;              // e16, %
+  plowbackRatio: number | null;           // e18, fraction 0..1
+  capexToRevenue: number | null;          // e19, %
+  capexToOcf: number | null;              // e20, %
+  inventoryTurnover: number | null;       // e12, ratio
+  revenuePerEmployee: number | null;      // e13, M PKR/employee
+  profitPerEmployee: number | null;       // e14, M PKR/employee
+  dupontRoe: number | null;               // e15, %
+  taxBurden: number | null;               // e16, fraction
+  interestBurden: number | null;          // e16, fraction
 }
 
 export interface RiskMetrics {

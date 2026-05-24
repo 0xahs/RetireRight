@@ -155,6 +155,17 @@ public class CompositeScoreCalculator : IMetricCalculator
             count++;
         }
 
+        // Sustainable growth rate (E17 = ROE × retention): forward-looking capacity to
+        // grow the dividend from retained earnings without raising external capital.
+        // Complements the three history-based inputs above — and keeps this score from
+        // going null when dividend-history metrics (CAGR/streak/chowder) are missing.
+        // >12% = 100, 8-12% = 70, 4-8% = 40, 0-4% = 20, negative = 10.
+        if (m.GetValueOrDefault("e17_sustainable_growth_rate") is { } sgr)
+        {
+            score += sgr switch { >= 12m => 100, >= 8m => 70, >= 4m => 40, >= 0m => 20, _ => 10 };
+            count++;
+        }
+
         return count > 0 ? score / count : null;
     }
 

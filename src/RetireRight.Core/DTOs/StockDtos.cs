@@ -27,7 +27,7 @@ public record StockSummaryDto(
     string? WhyLine,           // ≤80 chars natural-language positive framing
     string? Risks,             // ≤80 chars natural-language risk framing
     int MetricCompleteness,    // 0..100 — % of populated metrics
-    int MetricsTotal);         // expected total (77 non-bank, 92 banks)
+    int MetricsTotal);         // expected total (90 non-bank, 105 banks)
 
 public record StockDetailDto(
     StockSummaryDto Summary,

@@ -64,6 +64,8 @@ try
     builder.Services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator,
         RetireRight.MetricsEngine.Calculators.FinancialHealthCalculator>();
     builder.Services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator,
+        RetireRight.MetricsEngine.Calculators.GrowthQualityCalculator>();
+    builder.Services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator,
         RetireRight.MetricsEngine.Calculators.RiskCalculator>();
     builder.Services.AddScoped<RetireRight.MetricsEngine.IMetricCalculator,
         RetireRight.MetricsEngine.Calculators.BankingCalculator>();

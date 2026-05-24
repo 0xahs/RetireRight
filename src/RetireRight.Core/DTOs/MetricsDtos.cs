@@ -4,6 +4,7 @@ public record StockMetricsDto(
     DividendSafetyMetrics DividendSafety,
     DividendGrowthMetrics DividendGrowth,
     ValuationMetrics Valuation,
+    GrowthQualityMetrics GrowthQuality,
     RiskMetrics Risk,
     BankingMetrics? Banking,
     OpportunityMetrics Opportunity,
@@ -44,6 +45,25 @@ public record ValuationMetrics(
     decimal? YieldVsIndustry,
     decimal? PriceVs52wHigh,
     decimal? PriceVs52wLow);
+
+// Category E: Growth Quality. Percentages are ×100; PlowbackRatio/TaxBurden/
+// InterestBurden are fractions (0..1); turnover is a raw ratio; per-employee values
+// are in millions PKR. (ROE/ROA/ROIC and the standard margins are NOT here — they
+// live under c12–c18; see GrowthQualityCalculator.)
+public record GrowthQualityMetrics(
+    decimal? SustainableGrowthRate,   // e17 — ROE × retention (max self-funded growth)
+    decimal? Roce,                    // e4  — EBIT / capital employed
+    decimal? EbitdaMargin,            // e9
+    decimal? EbitMargin,              // e16 (5-factor DuPont piece)
+    decimal? PlowbackRatio,           // e18 — 1 − payout (fraction)
+    decimal? CapexToRevenue,          // e19
+    decimal? CapexToOcf,              // e20
+    decimal? InventoryTurnover,       // e12
+    decimal? RevenuePerEmployee,      // e13 (M PKR/employee)
+    decimal? ProfitPerEmployee,       // e14 (M PKR/employee)
+    decimal? DupontRoe,               // e15 — ROE reconstructed from the 3 drivers
+    decimal? TaxBurden,               // e16 — net / pretax (fraction)
+    decimal? InterestBurden);         // e16 — pretax / EBIT (fraction)
 
 public record RiskMetrics(
     decimal? Volatility1y,

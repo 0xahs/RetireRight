@@ -14,10 +14,21 @@ dotnet restore
 dotnet build
 
 # Run the API (the user manages this process manually — do not start/stop it for them)
-dotnet run --project src/RetireRight.Api/RetireRight.Api.csproj
+dotnet run --project src/RetireRight.Api/RetireRight.Api.csproj   # http://localhost:59931
 ```
 
-Pipeline operations are now triggered via HTTP:
+Web app (Next.js — separate process, talks to the API over HTTP):
+
+```bash
+cd web
+npm install
+npm run dev      # http://localhost:3000 (proxies to API at NEXT_PUBLIC_API_URL, default :59931)
+npm run build    # production build (also the typecheck/lint gate — there is no separate lint script)
+```
+
+Dev requires **both** processes: the .NET API on :59931 and the web app on :3000. CORS in the API allows `http://localhost:3000` (`Cors:AllowedOrigins`).
+
+Pipeline operations are triggered via HTTP (or from the web app's Pipeline page):
 
 ```bash
 # Scrape (source = configured Name like "Profile"/"Cash Flow", or Type like "Sarmaaya", or "stock" for all per-stock sources)
@@ -52,11 +63,25 @@ Migrations applied: `AddFundamentalsOwnershipScrapeRuns`, `FundamentalsKeyBySour
 
 ```
 HTTP API (RetireRight.Api, ASP.NET Core Minimal API)
-  ├── POST /api/pipeline/scrape  → PipelineJobService (background queue) → Scrapers → DB
-  ├── POST /api/pipeline/compute → PipelineJobService → MetricsEngine → DB
-  ├── POST /api/export/run       → PipelineJobService → Exporters (JSON, Briefing markdown)
-  └── GET  /api/pipeline/status  → DB health, last runs, active job
+  ├── Write/pipeline (background queue):
+  │     POST /api/pipeline/scrape   → PipelineJobService → Scrapers → DB
+  │     POST /api/pipeline/compute  → PipelineJobService → MetricsEngine → DB
+  │     POST /api/export/run        → PipelineJobService → Exporters (JSON, Briefing markdown)
+  │     GET  /api/pipeline/status   → DB health, last runs, active job
+  └── Read (serve the web app, DB → DTO via Mapping/ presentation layer):
+        /api/stocks · /api/sectors · /api/screener · /api/dividends · /api/macro
+        /api/portfolio · /api/scrapers · /api/settings/schedule
 ```
+
+Endpoints live in `src/RetireRight.Api/Endpoints/*.cs` (one file per group, each a `MapXxxEndpoints()` extension wired up in `Program.cs`). The read endpoints don't return raw metrics — they pass `computed_metrics` JSONB through the **presentation layer** in `src/RetireRight.Api/Mapping/`:
+
+| Component | Produces |
+|-----------|----------|
+| `SignalGrammar` | Per-stock verdict (`ACCUMULATE`/`HOLD`/`WATCH`/`REVIEW`/`AVOID`), conviction, safety tier (S–D), confidence (0–1), why-line, risks, net (post-WHT) yield. Pure function of metrics + freshness + sector. |
+| `MemoGenerator` | The `/api/stocks/{symbol}/memo` AI-memo envelope (citations to specific metric keys). |
+| `MetricsMapper` | Maps raw `Dictionary<string, decimal?>` metric keys into the typed DTO shapes the web consumes. |
+
+These are presentation-only (no DB writes, no metric computation). When the web shows a verdict/conviction/why-line, it comes from `SignalGrammar` — not from a stored column.
 
 **Seven projects, one dependency direction:**
 
@@ -66,11 +91,31 @@ HTTP API (RetireRight.Api, ASP.NET Core Minimal API)
 | `RetireRight.Core` | Domain models, interfaces, enums, config DTOs. No dependencies. |
 | `RetireRight.Infrastructure` | DbContext, repositories, entity config. Depends on Core. |
 | `RetireRight.Scrapers` | Playwright/AngleSharp web scraping with anti-bot (throttle, retry, stealth). Depends on Core + Infrastructure. |
-| `RetireRight.MetricsEngine` | Seven `IMetricCalculator` implementations: DividendSafety, DividendGrowth, Valuation, FinancialHealth, Risk, Banking, CompositeScore. Plus `FundamentalsEnricher` (pre-processor) and `OpportunityScorer` (post-processor). Depends on Core. |
+| `RetireRight.MetricsEngine` | Eight `IMetricCalculator` implementations: DividendSafety, DividendGrowth, Valuation, FinancialHealth, GrowthQuality, Risk, Banking, CompositeScore. Plus `FundamentalsEnricher` (pre-processor) and `OpportunityScorer` (post-processor). Depends on Core. Note: calculators run independently and see only `ctx.Fundamentals` (raw scraped data), never each other's output — derive shared building blocks from raw, don't read another category's keys. Some Category-E metrics deliberately live under other prefixes (ROE/ROA/ROIC = `c12/c13/c14`, margins = `c15–c18`, asset turnover/equity multiplier = `d7/d8`). |
 | `RetireRight.Screening` | `StockScreener` + preset filters (dividend_safety, high_yield, growth, value, retirement_core). Depends on Core. |
 | `RetireRight.Export` | `JsonExporter` and `BriefingExporter` implementing `IExporter`. Depends on Core. |
 
 **Key interfaces** — new scrapers implement `IScraper`, new exporters implement `IExporter`, new metric calculators implement `IMetricCalculator`. All are registered in the API's `Program.cs` DI container.
+
+## Web App (`web/` — Next.js 16, React 19)
+
+> ⚠️ `web/AGENTS.md`: **this is not the Next.js you know.** Next.js 16 has breaking changes vs. older training data. Read `web/node_modules/next/dist/docs/` before writing framework code. Note: middleware is now `proxy.ts` (NextAuth's `auth` middleware lives at `src/proxy.ts`, not `middleware.ts`).
+
+Stack: App Router with route groups, **TanStack Query** (all server state), **shadcn/ui** + Radix + **Tailwind v4**, **Zustand** (UI-only state, `stores/uiStore.ts`), **NextAuth v5** (credentials), **lightweight-charts** for price charts.
+
+Data flow — the web app never talks to the DB; it only calls the .NET API:
+
+```
+component → hook in src/lib/api/queries.ts (useQuery/useMutation)
+          → src/lib/api/client.ts (thin fetch wrapper, NEXT_PUBLIC_API_URL)
+          → .NET API → DTO typed in src/lib/api/types.ts
+```
+
+When adding a screen that needs new data: add the DTO to `types.ts`, a hook to `queries.ts`, then a page under `src/app/(dashboard)/`. Don't scatter raw `fetch` calls or hardcode the API base URL — go through `client.ts`.
+
+Pages (`src/app/(dashboard)/`): `stocks`, `stock/[symbol]`, `screener`, `sector`, `dividends`, `watchlist`, `compare`, `portfolio` (+ `portfolio/plan` monthly planner), `alerts`, `export`, `pipeline`. Signal-grammar UI primitives (verdict badge, conviction dots, safety tier, why-line, ASU card) live in `src/components/signal/`.
+
+**Auth:** single-user credentials login (`AUTH_EMAIL`/`AUTH_PASSWORD` env vars checked in `src/auth.ts`); `proxy.ts` gates every route except `/login` and `/api/auth`. Env vars (`web/.env.local`, gitignored): `NEXT_PUBLIC_API_URL`, `AUTH_SECRET`, `AUTH_EMAIL`, `AUTH_PASSWORD`.
 
 ## Database
 
@@ -83,13 +128,15 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 - For Supabase (production): set env var `RETIRERIGHT_RetireRight__Database__ConnectionString=<supabase_connection_string>`
 - JSONB columns (`Dictionary<string, decimal?>`) use explicit `HasConversion()` in DbContext — do NOT use `EnableDynamicJson()` (it silently drops keys on read)
 - Per-source `RateLimit` and `Retry` policies configured in `DataSources` array
-- Options pattern: `RetireRightOptions` → `DatabaseOptions`, `ExportOptions`, `WatchlistOptions`, `DataSourceOptions[]`, `PortfolioOptions`
+- Options pattern: `RetireRightOptions` → `DatabaseOptions`, `ExportOptions`, `WatchlistOptions`, `DataSourceOptions[]`, `PortfolioOptions`, `SchedulerOptions`
+- `Scheduler` block (`DailyRunTime`, `Enabled`, `Jobs`) drives `SchedulerService`; `Cors:AllowedOrigins` whitelists the web app origin
 
 ## DI Lifetimes
 
-- **Scoped**: DbContext, all repositories, `PipelineOrchestrator`
+- **Scoped**: DbContext, all repositories, `PipelineOrchestrator`, `ScraperFactory`, `MetricsEngine`, calculators, `StockScreener`
 - **Transient**: Scrapers (created fresh per pipeline job)
 - **Singleton**: RequestThrottler, RetryPolicy, Exporters, `PipelineJobService`, `PipelineEventBroadcaster`
+- **Hosted (background)**: `PipelineJobService` (job queue) and `SchedulerService` (checks the daily schedule every minute, auto-enqueues `scrape`/`compute`/`export` when `Scheduler.Enabled`)
 
 ## Anti-Bot Infrastructure (Scrapers)
 
@@ -109,9 +156,9 @@ POST /api/export/run       → Reads computed_metrics → JSON + Markdown to exp
 
 Data source identifiers used in the `source` field on pipeline requests, `scrape_runs.source`, and the active-job payload come from `data_source_configs.name` (e.g. `Profile`, `Cash Flow`, `Dividends`, `Macro`, `Listings`). The underlying scraper enum (`Sarmaaya`, `StockAnalysis`, `PsxTerminal`, `TradingEconomics`, `PsxUniverse`) is stored in `data_source_configs.type` as the technical bridge to the C# scraper class.
 
-**Metric counts (verified 2026-05-16):**
-- Non-bank stocks: 61/77 metrics populated
-- Banking stocks (MCB, UBL, MEBL): 67/92 metrics (15 banking H-category metrics added)
+**Metric counts:**
+- Emitted keys (populated + null): **90 non-bank / 105 banking** — base 77/92 + 13 Category-E (Growth Quality) keys added 2026-05-24. These totals are the `SignalGrammar` completeness denominators.
+- Populated (verified 2026-05-16, pre-Growth-Quality): 61/77 non-bank, 67/92 banking. Re-verify the populated counts after the next compute run now that Category E is live.
 
 **MetricContext.Sector** is typed as `Sector?` (enum, not string). Banking gate uses `HashSet<Sector> { Banking, IslamicBanking }` — consistent across BankingCalculator, CompositeScoreCalculator, OpportunityScorer, and FundamentalsEnricher.
 
@@ -191,21 +238,31 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 - [x] appsettings.local.json pattern for gitignored credentials
 - [x] Repo on GitHub (private): github.com/0xahs/RetireRight
 
+**Phase 1.5 — Web App & Signal Layer (COMPLETE, Sprints A–F)**
+- [x] Next.js 16 / React 19 web app (`web/`) — dashboard, stocks, screener, sector, dividends, watchlist, compare, portfolio, alerts, export, pipeline pages
+- [x] Signal grammar presentation layer (`Mapping/SignalGrammar`, `MemoGenerator`, `MetricsMapper`): verdict, conviction, safety tier, why-line, net yield
+- [x] Read API surface (stocks/sectors/screener/dividends/macro/portfolio/scrapers/settings)
+- [x] AI memo + metric citations + Claude envelope (Sprint E)
+- [x] Sector analysis, alerts page, scrape-on-demand, Lightweight Charts price charts (Sprint F)
+- [x] Monthly investment planner (`/api/portfolio/monthly-plan`, `portfolio/plan` page)
+- [x] `SchedulerService` daily auto-run (scrape → compute → export)
+- [x] Scraper identity decoupled from enum via `[DataSource]` attribute + `ScraperFactory` reflection
+
 **Phase 2 — Data Pipeline (NEXT)**
-- [ ] StockAnalysis scraper (unlocks cash flow data → 7 metrics: a2, a3, a5, a10, b8, c8, d9)
-- [ ] Source failover chains (if Sarmaaya fails, try PsxOfficial)
-- [ ] Macro data scrapers (PKR/USD, Brent, SBP rate — KSE-100 already done via Sarmaaya)
-- [ ] GrowthQualityCalculator (Category E — 20 metrics, data available)
+- [x] StockAnalysis scraper (`StockAnalysisScraper`)
+- [x] Macro data scrapers (`MacroScraper` — PKR/USD, Brent, SBP rate)
+- [ ] Source failover chains (if Sarmaaya fails, try PsxOfficial) — full cash-flow coverage still blocked (a2, a3, a5, a10, b8, c8, d9)
+- [x] GrowthQualityCalculator (Category E) — 13 new keys: e4 ROCE, e9 EBITDA margin, e12 inventory turnover, e13/e14 per-employee, e15 DuPont (3-factor), e16 DuPont 5-factor pieces (tax/interest burden, EBIT margin), e17 SGR, e18 plowback, e19/e20 capex intensity. (E1/E2/E3/E6/E7/E8/E10/E11 already emitted under c12–c18/d7; E5 ROIC−WACC omitted — no WACC source.)
 - [ ] E&P, Power, Fertilizer sector-specific calculators
 
 **Phase 3 — Intelligence**
-- [ ] Alert engine (yield traps, payout > 100%, upcoming ex-dates)
-- [ ] Portfolio integration (import from Finqalab screenshots)
+- [x] Alert engine (yield traps, payout > 100%, upcoming ex-dates)
+- [ ] Portfolio integration (import from Finqalab screenshots) — manual entry done via portfolio endpoints
 - [ ] CGT calculator
 
 **Phase 4 — Automation**
-- [ ] Scheduled daily runs (Windows Task Scheduler or cron)
-- [ ] Data freshness monitoring
+- [x] Scheduled daily runs (`SchedulerService`, configurable via `Scheduler` block / settings UI)
+- [ ] Data freshness monitoring — freshness already feeds `SignalGrammar` confidence; no standalone monitor yet
 - [ ] PSX trading calendar awareness
 
 **Phase 5 — Polish**

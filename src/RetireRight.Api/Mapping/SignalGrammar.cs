@@ -32,7 +32,9 @@ public static class SignalGrammar
         string sector)
     {
         var isBanking = IsBanking(sector);
-        var total = isBanking ? 92 : 77;
+        // Total = distinct metric keys the pipeline emits (populated + null).
+        // Base 77/92 + 13 Category-E (Growth Quality) keys = 90/105.
+        var total = isBanking ? 105 : 90;
         var populated = metrics.Count(kv => kv.Value is not null);
         var completeness = total > 0 ? (int)Math.Round(populated * 100.0 / total) : 0;
         if (completeness > 100) completeness = 100;
