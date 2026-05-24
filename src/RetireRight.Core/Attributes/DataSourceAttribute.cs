@@ -16,5 +16,14 @@ public sealed class DataSourceAttribute : Attribute
     /// </summary>
     public bool PerSymbol { get; init; } = true;
 
+    /// <summary>
+    /// Sort key for pipeline execution order — lower runs first. Scrapers without an
+    /// explicit value sit at 100. Use this to express data-dependency ordering
+    /// (e.g. universe seeds stocks → per-stock scrapers refine them) or write-priority
+    /// ordering (e.g. authoritative DPS source must run AFTER seeding sources so its
+    /// values win the merge upsert).
+    /// </summary>
+    public int Order { get; init; } = 100;
+
     public DataSourceAttribute(string identifier) => Identifier = identifier;
 }

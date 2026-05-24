@@ -25,7 +25,9 @@ namespace RetireRight.Scrapers.Sources;
 /// Cash amounts on this page are local currency despite the column being labeled "Cash Amount"
 /// — for PSX they render as "9.000 PKR". We parse the leading number; no unit conversion needed.
 /// </summary>
-[DataSource("StockAnalysisDividends", PerSymbol = true)]
+// Order=90: runs LAST so its authoritative DPS/Payment/Record dates win the merge upsert
+// against lower-confidence rows seeded by PsxUniverse and Sarmaaya earlier in the pass.
+[DataSource("StockAnalysisDividends", PerSymbol = true, Order = 90)]
 public class StockAnalysisDividendsScraper : BaseScraper
 {
     private const string BaseUrl = "https://stockanalysis.com";

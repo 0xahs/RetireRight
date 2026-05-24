@@ -17,7 +17,7 @@ namespace RetireRight.Scrapers.Sources;
 ///   + _prev_year variants for each, plus fcf_prev_year alias.
 /// All values are in millions PKR — same scale as Sarmaaya. No unit conversion needed.
 /// </summary>
-[DataSource("StockAnalysis", PerSymbol = true)]
+[DataSource("StockAnalysis", PerSymbol = true, Order = 30)]
 public class StockAnalysisScraper : BaseScraper
 {
     private const string BaseUrl = "https://stockanalysis.com";

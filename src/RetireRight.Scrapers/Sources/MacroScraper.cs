@@ -20,7 +20,7 @@ namespace RetireRight.Scrapers.Sources;
 ///   Brent Crude  — Yahoo Finance unofficial v8 API (free, no key)
 ///   SBP Rate     — sbp.org.pk monetary policy page (HTML, changes ~6x/year)
 /// </summary>
-[DataSource("TradingEconomics", PerSymbol = false)]
+[DataSource("TradingEconomics", PerSymbol = false, Order = 50)]
 public class MacroScraper : BaseScraper
 {
     private readonly IMacroRepository _macroRepo;

@@ -17,7 +17,8 @@ namespace RetireRight.Scrapers.Sources;
 /// merges all data by symbol, then upserts stocks + stores fundamentals.
 /// Ignores ScrapeRequest.Symbols — always scrapes the full universe.
 /// </summary>
-[DataSource("PsxUniverse", PerSymbol = false)]
+// Order=10: runs FIRST — seeds the Stock universe so per-stock scrapers have rows to update.
+[DataSource("PsxUniverse", PerSymbol = false, Order = 10)]
 public class PsxUniverseScraper : BaseScraper
 {
     private const string ListUrl = "https://stockanalysis.com/list/pakistan-stock-exchange/";

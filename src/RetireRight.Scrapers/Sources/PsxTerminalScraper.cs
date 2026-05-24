@@ -20,7 +20,7 @@ namespace RetireRight.Scrapers.Sources;
 /// The response uses SvelteKit's flat deduplication format: a data[] array where
 /// integer values inside objects/arrays are indices into that array.
 /// </summary>
-[DataSource("PsxTerminal", PerSymbol = true)]
+[DataSource("PsxTerminal", PerSymbol = true, Order = 40)]
 public class PsxTerminalScraper : BaseScraper
 {
     private const string BaseUrl = "https://psxterminal.com";

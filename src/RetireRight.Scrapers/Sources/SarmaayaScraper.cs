@@ -21,7 +21,7 @@ namespace RetireRight.Scrapers.Sources;
 /// The actual data fetching is done by <see cref="SarmaayaApi"/> and
 /// <see cref="SarmaayaBrowser"/> — standalone, reusable clients.
 /// </summary>
-[DataSource("Sarmaaya", PerSymbol = true)]
+[DataSource("Sarmaaya", PerSymbol = true, Order = 20)]
 public class SarmaayaScraper : BaseScraper
 {
     private readonly IStockRepository _stockRepo;

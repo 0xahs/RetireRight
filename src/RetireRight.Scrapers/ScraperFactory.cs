@@ -12,7 +12,7 @@ namespace RetireRight.Scrapers;
 /// </summary>
 public class ScraperFactory(IScraperConfigRepository configRepo, IServiceProvider sp)
 {
-    private sealed record Registration(Type ClrType, bool PerSymbol);
+    private sealed record Registration(Type ClrType, bool PerSymbol, int Order);
 
     // Reflection-built map: config.type (case-insensitive) -> scraper class + per-symbol flag.
     private static readonly IReadOnlyDictionary<string, Registration> ByIdentifier = BuildRegistry();
@@ -33,7 +33,7 @@ public class ScraperFactory(IScraperConfigRepository configRepo, IServiceProvide
             if (map.ContainsKey(attr!.Identifier))
                 throw new InvalidOperationException(
                     $"Duplicate [DataSource(\"{attr.Identifier}\")] — {type.Name} collides with {map[attr.Identifier].ClrType.Name}.");
-            map[attr.Identifier] = new Registration(type, attr.PerSymbol);
+            map[attr.Identifier] = new Registration(type, attr.PerSymbol, attr.Order);
         }
         return map;
     }
@@ -52,8 +52,15 @@ public class ScraperFactory(IScraperConfigRepository configRepo, IServiceProvide
                              || c.Type.Equals(sourceFilter, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
+        // Sort by [DataSource(Order=)] so pipeline runs in a data-dependency-correct sequence
+        // (universe seeds first, per-stock refines after, authoritative-DPS source last).
+        // Configs whose type isn't found in the registry sort to the end via the 100 default.
+        var ordered = configs
+            .OrderBy(c => ByIdentifier.TryGetValue(c.Type, out var r) ? r.Order : 100)
+            .ThenBy(c => c.Id);
+
         var scrapers = new List<IScraper>();
-        foreach (var config in configs)
+        foreach (var config in ordered)
         {
             var scraper = Create(config.ToOptions());
             if (scraper is not null) scrapers.Add(scraper);
