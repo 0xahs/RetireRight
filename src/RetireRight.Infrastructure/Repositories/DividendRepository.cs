@@ -55,13 +55,22 @@ public class DividendRepository : IDividendRepository
             // add payment_date and record_date. Whichever runs last shouldn't erase.
             existing.RecordDate   = dividend.RecordDate   ?? existing.RecordDate;
             existing.PaymentDate  = dividend.PaymentDate  ?? existing.PaymentDate;
-            existing.Dps          = dividend.Dps;  // always present
+            // DPS authority rule — confirmed beats estimated regardless of write order.
+            // Without this an estimated row (e.g. StockAnalysis info-card fallback Rs 46
+            // for ATLH) could clobber a confirmed value (PsxTerminal homepage Rs 56)
+            // depending on which scraper happens to run last. Both being confirmed (or
+            // both estimated) falls through to last-writer-wins, matching the prior behaviour.
+            var newWins = existing.IsEstimated || !dividend.IsEstimated;
+            if (newWins)
+            {
+                existing.Dps         = dividend.Dps;
+                existing.IsEstimated = dividend.IsEstimated;
+            }
             existing.Percentage   = dividend.Percentage   ?? existing.Percentage;
             existing.Year         = dividend.Year         ?? existing.Year;
             existing.Frequency    = dividend.Frequency    ?? existing.Frequency;
-            existing.IsEstimated  = dividend.IsEstimated; // writer is authoritative for this flag
             existing.DividendType = dividend.DividendType;
-            existing.Source       = dividend.Source;
+            existing.Source       = newWins ? dividend.Source : existing.Source;
             existing.ScrapeRunId  = dividend.ScrapeRunId;
             existing.UpdatedAt    = DateTime.UtcNow;
         }

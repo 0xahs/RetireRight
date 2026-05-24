@@ -175,14 +175,30 @@ try
             Log.Information("Seeded Dividends History scraper config (type={Type})", divHistType);
         }
 
-        // Retire PsxTerminal — superseded by StockAnalysisDividends (per-stock /dividend/ page).
-        // Remove the data_source_configs row so it disappears from the Pipeline UI. Idempotent.
-        var psxTermConfig = (await configRepo.GetAllAsync()).FirstOrDefault(c => c.Type == "PsxTerminal");
-        if (psxTermConfig is not null)
+        // PsxTerminal re-enabled as a cross-validation dividend source. Ensure the
+        // data_source_configs row exists so it appears in the Pipeline UI. Idempotent.
+        var psxTermType = typeof(RetireRight.Scrapers.Sources.PsxTerminalScraper)
+            .GetCustomAttributes(typeof(RetireRight.Core.Attributes.DataSourceAttribute), false)
+            .Cast<RetireRight.Core.Attributes.DataSourceAttribute>()
+            .First().Identifier;
+        var hasPsxTerm = (await configRepo.GetAllAsync()).Any(c => c.Type == psxTermType);
+        if (!hasPsxTerm)
         {
-            db.DataSourceConfigs.Remove(psxTermConfig);
-            db.SaveChanges();
-            Log.Information("Removed retired PsxTerminal scraper config");
+            await configRepo.UpsertAsync(new DataSourceConfig
+            {
+                Name = "Dividends",
+                Type = psxTermType,
+                Description = "Per-stock dividend history + homepage upcoming announcements (psxterminal.com)",
+                BaseUrl = "https://psxterminal.com",
+                Enabled = true,
+                MaxRequestsPerMinute = 10,
+                MinDelayMs = 1500,
+                MaxDelayMs = 3000,
+                RetryMaxAttempts = 2,
+                RetryInitialDelayMs = 2000,
+                RetryBackoffMultiplier = 2.0,
+            });
+            Log.Information("Seeded PsxTerminal (Dividends) scraper config");
         }
 
         // One-time cleanup: forward-dated calendar rows seeded by the universe scraper had

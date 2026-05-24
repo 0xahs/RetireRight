@@ -20,11 +20,15 @@ namespace RetireRight.Scrapers.Sources;
 /// The response uses SvelteKit's flat deduplication format: a data[] array where
 /// integer values inside objects/arrays are indices into that array.
 /// </summary>
-// RETIRED 2026-05-25: superseded by StockAnalysisDividendsScraper, which scrapes
-// the same fields (ex-date, payment, record, dps) from stockanalysis.com/quote/psx/
-// {TICKER}/dividend/ and works universe-wide rather than watchlist-only.
-// Attribute removed → ScraperFactory no longer registers this class. Class kept
-// for reference; Program.cs startup removes the data_source_configs row.
+// Re-enabled as a cross-validation dividend source alongside StockAnalysisDividends.
+// PsxTerminal carries forward-announced ex-dates (sometimes the only source — e.g. ATLH
+// where stockanalysis.com's history table lags) plus 6+ years of per-stock history.
+// Order=80 → runs before StockAnalysisDividends (Order=90); the smart merge in
+// DividendRepository keeps confirmed values from either source over estimates.
+// Also scrapes psxterminal.com/__data.json futureDividends as a discovery layer for
+// stocks not in watchlist; values there are net-of-WHT so we gross them up to match
+// the rest of the system's gross-DPS convention.
+[DataSource("PsxTerminal", PerSymbol = true, Order = 80)]
 public class PsxTerminalScraper : BaseScraper
 {
     private const string BaseUrl = "https://psxterminal.com";
@@ -62,9 +66,20 @@ public class PsxTerminalScraper : BaseScraper
         var errors = new List<string>();
         _currentScrapeRunId = request.ScrapeRunId;
 
-        var symbols = request.Symbols.Length > 0
+        // Step 1: scrape the homepage's "Upcoming Dividends" section first. Two purposes:
+        //   (a) capture symbols with announced ex-dates that aren't in the watchlist (e.g.
+        //       AABS / ATLH / HCAR) so the per-stock loop below also covers them, and
+        //   (b) seed the dividends table with the announcement values directly. Values on
+        //       this endpoint are net-of-WHT — grossed up before storage.
+        var homepageSymbols = await FetchAndUpsertHomepageUpcomingAsync(ct);
+
+        var baseSymbols = request.Symbols.Length > 0
             ? request.Symbols
             : (await _stockRepo.GetWatchlistAsync(ct)).Select(s => s.Symbol).ToArray();
+
+        var symbols = baseSymbols
+            .Union(homepageSymbols, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         foreach (var symbol in symbols)
         {
@@ -180,6 +195,91 @@ public class PsxTerminalScraper : BaseScraper
         }
 
         return results.Count > 0 ? results : null;
+    }
+
+    /// <summary>
+    /// Hits psxterminal.com/__data.json and parses the homepage's "Upcoming Dividends"
+    /// section (root.futureDividends). Upserts each row into the dividends table and
+    /// returns the set of symbols seen so the per-stock loop can also process them.
+    ///
+    /// Source values are NET-of-WHT (verified: AABS 6.38 = 7.5 × 0.85; HCAR 7.65 = 9.0 × 0.85).
+    /// We gross them up via the configured filer WHT rate (0.15) so they're stored in the
+    /// same gross-DPS convention as every other source.
+    /// </summary>
+    private async Task<List<string>> FetchAndUpsertHomepageUpcomingAsync(CancellationToken ct)
+    {
+        const decimal whtRate = 0.15m;
+        var seenSymbols = new List<string>();
+
+        try
+        {
+            var json = await WithRetryAsync(
+                () => _http.GetStringAsync($"{BaseUrl}/__data.json", ct),
+                $"GET {BaseUrl}/__data.json", ct);
+
+            var doc = JsonNode.Parse(json);
+            var rawData = doc?["nodes"]?[0]?["data"]?.AsArray();
+            if (rawData is null || rawData.Count == 0) return seenSymbols;
+
+            var root = rawData[0]?.AsObject();
+            var fdIdx = root?["futureDividends"]?.GetValue<int>();
+            if (fdIdx is null) return seenSymbols;
+
+            var list = Deref(rawData, fdIdx.Value)?.AsArray();
+            if (list is null) return seenSymbols;
+
+            foreach (var item in list)
+            {
+                var entry = DerefOnce(rawData, item)?.AsObject();
+                if (entry is null) continue;
+
+                var symbol  = DerefString(rawData, entry["symbol"]);
+                var exStr   = DerefString(rawData, entry["ex_date"]);
+                var amtNode = DerefOnce  (rawData, entry["amount"]);
+
+                if (symbol is null || exStr is null) continue;
+                if (!DateOnly.TryParse(exStr, out var exDate)) continue;
+                if (amtNode is not JsonValue amtVal) continue;
+                decimal netAmount;
+                try { netAmount = amtVal.GetValue<decimal>(); }
+                catch { continue; }
+                if (netAmount <= 0) continue;
+
+                var grossDps = Math.Round(netAmount / (1m - whtRate), 4);
+
+                // payment_date / record_date on this endpoint are placeholders (always ==
+                // ex_date for these entries). Leave them null — per-stock scrape or the
+                // StockAnalysisDividends scrape will fill them in if available.
+                var stock = await _stockRepo.GetBySymbolAsync(symbol, ct);
+                if (stock is null)
+                {
+                    Logger.LogDebug("[PsxTerminal] upcoming {Symbol}: not in DB — skipping seed", symbol);
+                    seenSymbols.Add(symbol);
+                    continue;
+                }
+
+                await _dividendRepo.UpsertAsync(new Dividend
+                {
+                    StockId      = stock.Id,
+                    ExDate       = exDate,
+                    Dps          = grossDps,
+                    DividendType = "regular",
+                    Source       = Source,
+                    ScrapeRunId  = _currentScrapeRunId,
+                }, ct);
+                seenSymbols.Add(symbol);
+            }
+
+            Logger.LogInformation("[PsxTerminal] upcoming homepage: {Count} announced dividends upserted",
+                seenSymbols.Count);
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: per-stock loop continues even if homepage scrape fails.
+            Logger.LogWarning(ex, "[PsxTerminal] homepage upcoming-dividends scrape failed — continuing per-stock");
+        }
+
+        return seenSymbols;
     }
 
     // Dereference one level: if val is an int index, return rawData[val]; else return val.
