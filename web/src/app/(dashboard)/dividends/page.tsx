@@ -3,6 +3,7 @@
 import { useUpcomingDividends } from '@/lib/api/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { formatRs } from '@/lib/utils/format';
 import Link from 'next/link';
 
 function urgencyClass(days: number) {
@@ -79,7 +80,7 @@ export default function DividendsPage() {
                     <td className="px-3 py-2 text-warm-muted uppercase tracking-[0.05em]">
                       {new Date(d.lastBuyDate).toLocaleDateString('en-PK', { month: 'short', day: '2-digit' }).toUpperCase()}
                     </td>
-                    <td className="text-right px-3 py-2 font-bold text-foreground">Rs.{d.dps}</td>
+                    <td className="text-right px-3 py-2 font-bold text-foreground whitespace-nowrap">{formatRs(d.dps)}</td>
                     <td className="text-right px-3 py-2 text-warm-muted uppercase tracking-[0.05em]">
                       {d.paymentDate
                         ? new Date(d.paymentDate).toLocaleDateString('en-PK', { month: 'short', day: '2-digit' }).toUpperCase()

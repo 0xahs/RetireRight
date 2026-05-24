@@ -349,7 +349,7 @@ export default function StockPage() {
                           {d.dividendType}
                         </span>
                       </td>
-                      <td className="text-right px-2 py-2 text-foreground font-bold">Rs.{d.dps}</td>
+                      <td className="text-right px-2 py-2 text-foreground font-bold whitespace-nowrap">{formatRs(d.dps)}</td>
                       <td className="text-right px-4 py-2 text-warm-muted uppercase tracking-[0.05em]">
                         {d.paymentDate
                           ? new Date(d.paymentDate).toLocaleDateString('en-PK', { month: 'short', day: '2-digit', year: '2-digit' }).toUpperCase()
@@ -366,7 +366,7 @@ export default function StockPage() {
         <TabsContent value="fundamentals" className="mt-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <MetricGroup title="DIVIDEND GROWTH" metrics={[
-              { label: 'DPS (TTM)',            value: dpsTtm != null ? `Rs.${dpsTtm.toFixed(2)}` : '—' },
+              { label: 'DPS (TTM)',            value: dpsTtm != null ? formatRs(dpsTtm) : '—' },
               { label: 'DPS GROWTH 1Y',        value: formatPct(metrics.dividendGrowth.dpsYoyGrowth),   tone: growthTone(metrics.dividendGrowth.dpsYoyGrowth) },
               { label: 'DPS CAGR 3Y',          value: formatPct(metrics.dividendGrowth.dpsCagr3y),       tone: growthTone(metrics.dividendGrowth.dpsCagr3y) },
               { label: 'DPS CAGR 5Y',          value: formatPct(metrics.dividendGrowth.dpsCagr5y),       tone: growthTone(metrics.dividendGrowth.dpsCagr5y) },

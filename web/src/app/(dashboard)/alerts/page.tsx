@@ -113,39 +113,36 @@ export default function AlertsPage() {
   const totalAlerts = yieldTraps.length + avoidVerdicts.length + stale.length + exSoon.length;
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="max-w-3xl mx-auto px-6 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="h-px w-6 bg-primary/60" />
-            <span className="text-[9px] uppercase tracking-[0.22em] text-amber font-bold">SIGNAL</span>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[9px] text-amber font-bold tracking-[0.22em] uppercase mb-1">
+            ┌── ALERTS
           </div>
-          <div className="flex items-center justify-between">
-            <h1 className="text-[18px] font-bold uppercase tracking-[0.1em] text-foreground">Alerts</h1>
-            {!isLoading && (
-              <span className={cn(
-                'text-[10px] num font-bold uppercase tracking-[0.12em] px-2 py-1 border',
-                totalAlerts > 0
-                  ? 'text-warn border-warn/40 bg-warn/5'
-                  : 'text-cyan-pos border-cyan-pos/40 bg-cyan-pos/5',
-              )}>
-                {totalAlerts > 0 ? `${totalAlerts} ACTIVE` : 'ALL CLEAR'}
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-warm-dim mt-1 uppercase tracking-[0.12em] font-bold">
-            Watchlist · yield traps · ex-dates · stale data
-          </p>
+          <h1 className="text-foreground font-bold text-[20px] tracking-tight">
+            YIELD TRAPS · EX-DATES · STALE DATA
+          </h1>
         </div>
-
-        {isLoading && (
-          <div className="space-y-4">
-            {[80, 60, 100, 60].map((h, i) => (
-              <Skeleton key={i} className={`h-${h === 60 ? 16 : h === 80 ? 20 : 24} rounded-sm`} />
-            ))}
-          </div>
+        {!isLoading && (
+          <span className={cn(
+            'text-[10px] num font-bold uppercase tracking-[0.12em] px-2 py-1 border self-center',
+            totalAlerts > 0
+              ? 'text-warn border-warn/40 bg-warn/5'
+              : 'text-cyan-pos border-cyan-pos/40 bg-cyan-pos/5',
+          )}>
+            {totalAlerts > 0 ? `${totalAlerts} ACTIVE` : 'ALL CLEAR'}
+          </span>
         )}
+      </div>
+
+      {isLoading && (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-sm" />
+          ))}
+        </div>
+      )}
 
         {!isLoading && (
           <div className="space-y-6">
@@ -243,7 +240,6 @@ export default function AlertsPage() {
 
           </div>
         )}
-      </div>
     </div>
   );
 }

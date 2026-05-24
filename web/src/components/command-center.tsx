@@ -8,7 +8,7 @@ import Link from 'next/link';
 import type { StockSummaryDto, Verdict } from '@/lib/api/types';
 import { ASUCard } from '@/components/signal/asu-card';
 import { NothingActionable } from '@/components/signal/nothing-actionable';
-import { yieldTone, changeTone, changeMarker } from '@/lib/utils/format';
+import { formatRs, yieldTone, changeTone, changeMarker } from '@/lib/utils/format';
 
 /* ── Cockpit picker ──────────────────────────────────────────────────────── */
 
@@ -334,7 +334,7 @@ function UpcomingDividendsWidget() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-foreground text-[12px]">Rs.{d.dps}</div>
+                  <div className="font-bold text-foreground text-[12px]">{formatRs(d.dps)}</div>
                   <div className={cn('text-[9px] uppercase tracking-[0.15em] font-bold mt-0.5', tone)}>
                     {urgent ? '⚠ URGENT' : soon ? '◐ SOON' : `${d.daysUntilEx}D AWAY`}
                   </div>

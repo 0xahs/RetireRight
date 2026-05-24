@@ -118,34 +118,23 @@ export default function SectorPage() {
   const { data: sectors, isLoading, error } = useSectors();
 
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* Page header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="h-px w-6 bg-primary/60" />
-            <span className="text-[9px] uppercase tracking-[0.22em] text-amber font-bold">SIGNAL</span>
+    <div className="space-y-4">
+      {/* Page header */}
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[9px] text-amber font-bold tracking-[0.22em] uppercase mb-1">
+            ┌── SECTOR ANALYSIS
           </div>
-          <h1 className="text-[18px] font-bold uppercase tracking-[0.1em] text-foreground">
-            Sector Analysis
+          <h1 className="text-foreground font-bold text-[20px] tracking-tight">
+            PSX UNIVERSE · BY SECTOR
           </h1>
-          <p className="text-[11px] text-warm-dim mt-1 uppercase tracking-[0.12em] font-bold">
-            PSX universe — avg metrics and top picks by sector
-          </p>
         </div>
-
-        {/* Summary strip */}
         {!isLoading && sectors && (
-          <div className="flex items-center gap-4 mb-6 px-1">
-            <div className="text-[10px] uppercase tracking-[0.15em] text-warm-dim font-bold num">
-              {sectors.length} SECTORS
-            </div>
-            <span className="h-px flex-1 bg-border" />
-            <div className="text-[10px] uppercase tracking-[0.15em] text-warm-dim font-bold num">
-              {sectors.reduce((n, s) => n + s.stockCount, 0)} STOCKS
-            </div>
+          <div className="text-[10px] uppercase tracking-[0.15em] text-warm-dim font-bold num self-center">
+            {sectors.length} SECTORS · {sectors.reduce((n, s) => n + s.stockCount, 0)} STOCKS
           </div>
         )}
+      </div>
 
         {/* Loading */}
         {isLoading && (
@@ -177,7 +166,6 @@ export default function SectorPage() {
             No sector data — run compute pipeline first
           </div>
         )}
-      </div>
     </div>
   );
 }

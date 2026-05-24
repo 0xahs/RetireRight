@@ -102,7 +102,7 @@ export default function MonthlyPlanPage() {
       {/* Summary */}
       {data && !isLoading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <SummaryPanel label="ALLOCATED" value={formatRs(data.summary.totalAllocated)} sub={`OF Rs.${data.budget.toFixed(0)}`} />
+          <SummaryPanel label="ALLOCATED" value={formatRs(data.summary.totalAllocated)} sub={`OF ${formatRs(data.budget)}`} />
           <SummaryPanel label="LEFTOVER" value={formatRs(data.summary.leftover)} sub="TOO SMALL FOR ANOTHER LOT" subTone={data.summary.leftover > 0 ? 'text-warm-muted' : 'text-cyan-pos'} />
           <SummaryPanel label="PICKS" value={`${data.summary.pickCount}`} sub="TOP-RANKED WATCHLIST" />
           <SummaryPanel
