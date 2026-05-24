@@ -6,6 +6,7 @@ using RetireRight.Core.Configuration;
 using RetireRight.Core.DTOs;
 using RetireRight.Core.Interfaces;
 using RetireRight.Infrastructure.Database;
+using RetireRight.Scrapers;
 
 namespace RetireRight.Api.Endpoints;
 
@@ -44,7 +45,12 @@ public static class PipelineEndpoints
 
         var configuredSources = await scraperConfigs.GetAllAsync(ct);
 
-        var sourceGroups = configuredSources.Select(ds =>
+        // Display in the same order the pipeline executes (universe first, authoritative-DPS
+        // last). Sort key comes from the [DataSource(Order=)] attribute via ScraperFactory.
+        var sourceGroups = configuredSources
+            .OrderBy(ds => ScraperFactory.OrderForType(ds.Type))
+            .ThenBy(ds => ds.Id)
+            .Select(ds =>
         {
             if (runsBySource.TryGetValue(ds.Name, out var latest))
             {

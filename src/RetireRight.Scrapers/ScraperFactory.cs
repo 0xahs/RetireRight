@@ -38,6 +38,12 @@ public class ScraperFactory(IScraperConfigRepository configRepo, IServiceProvide
         return map;
     }
 
+    /// <summary>Attribute Order for a scraper type identifier. Returns 100 for unknown types
+    /// so unannotated configs sort to the end (matches CreateEnabledAsync). Used by the
+    /// Pipeline UI endpoint to display sources in the same order they execute.</summary>
+    public static int OrderForType(string identifier) =>
+        ByIdentifier.TryGetValue(identifier, out var r) ? r.Order : 100;
+
     public async Task<List<IScraper>> CreateEnabledAsync(string? sourceFilter = null, CancellationToken ct = default)
     {
         var configs = sourceFilter is null

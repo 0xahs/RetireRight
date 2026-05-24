@@ -1,5 +1,6 @@
 using RetireRight.Core.Interfaces;
 using RetireRight.Core.Models;
+using RetireRight.Scrapers;
 
 namespace RetireRight.Api.Endpoints;
 
@@ -18,7 +19,11 @@ public static class ScraperConfigEndpoints
     private static async Task<IResult> GetAllAsync(IScraperConfigRepository repo, CancellationToken ct)
     {
         var configs = await repo.GetAllAsync(ct);
-        return Results.Ok(configs.Select(ToDto));
+        // Match the execution + pipeline-status display order via the [DataSource(Order=)] attribute.
+        return Results.Ok(configs
+            .OrderBy(c => ScraperFactory.OrderForType(c.Type))
+            .ThenBy(c => c.Id)
+            .Select(ToDto));
     }
 
     private static async Task<IResult> PatchAsync(
