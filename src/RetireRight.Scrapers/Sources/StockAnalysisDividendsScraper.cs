@@ -224,6 +224,37 @@ public class StockAnalysisDividendsScraper : BaseScraper
                     PaymentDate: cells.Length > 3 ? ParseUsDate(cells[3]) : null));
             }
 
+            // Fallback: when the history table is stale (no future row), the page's
+            // info card / natural-language summary may still announce the next ex-date
+            // (e.g. ATLH 2026-06-15 — only present in the info card, not the table).
+            // Estimate the per-event DPS from the last paid amount; the merge upsert
+            // will replace it with the true value once stockanalysis.com refreshes
+            // its history table.
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (!parsed.Any(r => r.ExDate > today))
+            {
+                var infoCardRaw = await page.EvaluateAsync<string?>("""
+                    () => {
+                        const m = document.body.innerText.match(
+                            /the next ex-dividend date is ([A-Z][a-z]+ \d{1,2}, \d{4})/i);
+                        return m ? m[1] : null;
+                    }
+                """);
+                var fx = ParseUsDate(infoCardRaw);
+                if (fx is { } futureEx && futureEx > today && parsed.Count > 0)
+                {
+                    var estimatedDps = parsed[0].Dps;  // most recent past dividend (table sorted desc)
+                    parsed.Insert(0, new DividendRow(
+                        ExDate:      futureEx,
+                        Dps:         estimatedDps,
+                        RecordDate:  null,
+                        PaymentDate: null));
+                    Logger.LogInformation(
+                        "[StockAnalysisDividends] {Symbol}: history table stale; added info-card row {Date} (estimated DPS={Dps} from last paid)",
+                        symbol, futureEx, estimatedDps);
+                }
+            }
+
             return parsed.Count > 0
                 ? (FetchOutcome.Success, parsed)
                 : (FetchOutcome.NoData,  null);
