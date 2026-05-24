@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
@@ -17,6 +17,15 @@ import { StockLogo } from '@/components/stock-logo';
 import { useCompareBasket } from '@/components/compare/compare-basket-context';
 
 export default function ComparePage() {
+  // useSearchParams() must sit inside a Suspense boundary or static prerender bails.
+  return (
+    <Suspense fallback={<EmptyState />}>
+      <CompareView />
+    </Suspense>
+  );
+}
+
+function CompareView() {
   const router = useRouter();
   const params = useSearchParams();
   const { symbols: basketSymbols, remove, clear } = useCompareBasket();
