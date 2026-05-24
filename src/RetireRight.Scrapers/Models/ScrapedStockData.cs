@@ -30,9 +30,6 @@ public record ScrapedStockData
     // ─── Price History (for backfill) ─────────────────────────
     public IReadOnlyList<ScrapedPriceEntry> PriceHistory { get; init; } = [];
 
-    // ─── Dividends ────────────────────────────────────────────
-    public IReadOnlyList<ScrapedDividend> Dividends { get; init; } = [];
-
     // ─── Fundamentals (metric key → value) ────────────────────
     public IReadOnlyDictionary<string, decimal?> Fundamentals { get; init; } =
         new Dictionary<string, decimal?>();
@@ -60,15 +57,6 @@ public record ScrapedPriceEntry
     public decimal Price { get; init; }
     public long? Volume { get; init; }
     public decimal? MarketCap { get; init; }
-}
-
-public record ScrapedDividend
-{
-    public DateOnly AnnouncementDate { get; init; }
-    public decimal Dps { get; init; }
-    public string Type { get; init; } = "dividend";
-    public decimal? Percentage { get; init; }
-    public string? Year { get; init; }
 }
 
 public record ScrapedOwnership

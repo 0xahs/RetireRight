@@ -91,9 +91,6 @@ public class SarmaayaBrowser : BrowserDataClient
             var stockData = FindIntercepted<SarmaayaEnvelope<SarmaayaStockResponse>>(
                 intercepted, "/api/stocks/", excludePatterns: ["/dividends", "/price-history", "/returns", "/about", "/peers", "/fundamentals", "/insiders", "/announcements", "/reports", "/details", "/ticker", "/metrics", "/ownership"]);
 
-            var dividendData = FindIntercepted<SarmaayaEnvelope<SarmaayaDividendResponse>>(
-                intercepted, "/api/stocks/dividends/");
-
             var aboutData = FindIntercepted<SarmaayaEnvelope<SarmaayaAboutResponse>>(
                 intercepted, "/api/stocks/about");
 
@@ -112,24 +109,6 @@ public class SarmaayaBrowser : BrowserDataClient
             if (stockData is { Success: true, Response: not null })
             {
                 var price = stockData.Response;
-
-                var dividends = new List<ScrapedDividend>();
-                if (dividendData is { Success: true, Response.PayoutHistory.Count: > 0 })
-                {
-                    foreach (var d in dividendData.Response.PayoutHistory)
-                    {
-                        if (d.DividendPerShare is null or <= 0) continue;
-                        if (!DateOnly.TryParse(d.AnnouncementDate, out var date)) continue;
-                        dividends.Add(new ScrapedDividend
-                        {
-                            AnnouncementDate = date,
-                            Dps = d.DividendPerShare.Value,
-                            Type = d.PayoutType ?? "dividend",
-                            Percentage = d.Percentage,
-                            Year = d.Year
-                        });
-                    }
-                }
 
                 var ownership = new List<ScrapedOwnership>();
                 if (ownershipData is { Success: true, Response.Count: > 0 })
@@ -199,7 +178,6 @@ public class SarmaayaBrowser : BrowserDataClient
                     Isin = aboutData?.Response?.Isin ?? price.Isin,
                     SectorName = price.SectorName,
                     IndustryName = aboutData?.Response?.Industry,
-                    Dividends = dividends,
                     Ownership = ownership,
                     InsiderTransactions = insiders,
                     Announcements = announcements,

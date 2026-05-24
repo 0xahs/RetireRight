@@ -39,24 +39,6 @@ internal class SarmaayaStockResponse
     public bool? IsShariah { get; set; }
 }
 
-// ─── /api/stocks/dividends/{SYMBOL} ───────────────────────────
-
-internal class SarmaayaDividendResponse
-{
-    public List<SarmaayaPayoutEntry> PayoutHistory { get; set; } = [];
-}
-
-internal class SarmaayaPayoutEntry
-{
-    public string? Symbol { get; set; }
-    public string? Year { get; set; }
-    public string? AnnouncementDate { get; set; }
-    public string? PayoutType { get; set; }
-    public decimal? FaceValue { get; set; }
-    public decimal? DividendPerShare { get; set; }
-    public decimal? Percentage { get; set; }
-}
-
 // ─── /api/stocks/about?symbol={SYMBOL} ────────────────────────
 
 internal class SarmaayaAboutResponse

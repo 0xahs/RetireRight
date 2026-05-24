@@ -56,10 +56,7 @@ public class SarmaayaApi : ApiClient
 
         AddRaw(rawResponses, $"/api/stocks/{symbol}", stock);
 
-        // ── 2. Dividends (optional) ──
-        var dividends = await FetchDividendsAsync(symbol, rawResponses, ct);
-
-        // ── 3. Company info → ISIN for fundamentals (optional) ──
+        // ── 2. Company info → ISIN for fundamentals (optional) ──
         var (isin, industry) = await FetchAboutAsync(symbol, rawResponses, ct);
         isin ??= price.Isin;
 
@@ -114,7 +111,6 @@ public class SarmaayaApi : ApiClient
             Isin = isin,
             SectorName = price.SectorName,
             IndustryName = industry,
-            Dividends = dividends,
             Fundamentals = fundamentals,
             Returns = returns,
             PriceHistory = priceHistory,
@@ -126,38 +122,6 @@ public class SarmaayaApi : ApiClient
     }
 
     // ─── Endpoint Fetchers ────────────────────────────────────
-
-    private async Task<List<ScrapedDividend>> FetchDividendsAsync(
-        string symbol, List<RawResponseEntry> rawResponses, CancellationToken ct)
-    {
-        var dividends = new List<ScrapedDividend>();
-
-        var result = await GetJsonAsync<SarmaayaEnvelope<SarmaayaDividendResponse>>(
-            $"/api/stocks/dividends/{symbol}", JsonOptions, ct);
-
-        if (result?.Data?.Response?.PayoutHistory is not { Count: > 0 })
-            return dividends;
-
-        AddRaw(rawResponses, $"/api/stocks/dividends/{symbol}", result);
-
-        foreach (var d in result.Data.Response.PayoutHistory)
-        {
-            if (d.DividendPerShare is null or <= 0) continue;
-            if (!DateOnly.TryParse(d.AnnouncementDate, out var date)) continue;
-
-            dividends.Add(new ScrapedDividend
-            {
-                AnnouncementDate = date,
-                Dps = d.DividendPerShare.Value,
-                Type = d.PayoutType ?? "dividend",
-                Percentage = d.Percentage,
-                Year = d.Year
-            });
-        }
-
-        Logger.LogDebug("Fetched {Count} dividends for {Symbol}", dividends.Count, symbol);
-        return dividends;
-    }
 
     private async Task<(string? isin, string? industry)> FetchAboutAsync(
         string symbol, List<RawResponseEntry> rawResponses, CancellationToken ct)
