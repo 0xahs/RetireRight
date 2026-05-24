@@ -57,12 +57,14 @@ export function PriceChart({ data, symbol }: PriceChartProps) {
     const GRID  = 'rgba(255,255,255,0.04)';
     const TEXT  = 'rgba(255,255,255,0.35)';
     const BORDER = 'rgba(255,255,255,0.08)';
-    // Match the app palette: cyan-pos (--verdict-acc) for up, destructive for down,
-    // so the candles agree with the change % rendered in the header above.
-    const UP   = 'oklch(0.79 0.13 180)';
-    const DOWN = 'oklch(0.68 0.22 25)';
-    const UP_FILL   = 'oklch(0.79 0.13 180 / 0.35)';
-    const DOWN_FILL = 'oklch(0.68 0.22 25 / 0.35)';
+    // Match the app palette so candles agree with the change % in the header above.
+    // sRGB equivalents of the CSS tokens — lightweight-charts can't parse oklch:
+    //   #3bd5be ≈ --verdict-acc oklch(0.79 0.13 180)  (cyan / up)
+    //   #ff4757 ≈ --destructive oklch(0.68 0.22 25)    (red / down)
+    const UP   = '#3bd5be';
+    const DOWN = '#ff4757';
+    const UP_FILL   = 'rgba(59, 213, 190, 0.35)';
+    const DOWN_FILL = 'rgba(255, 71, 87, 0.35)';
 
     // ── Main price chart ─────────────────────────────────────
     const chart = createChart(container, {
