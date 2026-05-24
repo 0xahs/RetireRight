@@ -177,3 +177,29 @@ export function sectorColor(sector: string): string {
   if (s.includes('cement')) return 'bg-stone-400/10 text-stone-400';
   return 'bg-muted/50 text-muted-foreground';
 }
+
+/**
+ * Terminal-palette TEXT color for a sector, matched by substring against the
+ * full PSX / StockAnalysis sector names (e.g. "Banking Services", "Food & Tobacco",
+ * "Electrical Utilities & IPPs"). Used where we want just colored text, not a badge.
+ * Order matters — more specific patterns first.
+ */
+export function sectorTone(sector: string | null | undefined): string {
+  const s = (sector ?? '').toLowerCase();
+  if (!s) return 'text-warm-muted';
+  if (/bank|financ|insur|capital market|credit|leasing|mortgage|brokerage/.test(s)) return 'text-[oklch(0.72_0.11_235)]'; // blue
+  if (/chemical|fertiliz|plastic|paint|rubber/.test(s))                   return 'text-[oklch(0.80_0.15_140)]'; // green
+  if (/oil|gas|petroleum|refin|fuel/.test(s))                             return 'text-[oklch(0.74_0.16_55)]';  // orange
+  if (/power|electric|utilit|ipp|energy/.test(s))                         return 'text-amber';                   // amber
+  if (/tech|comput|software|data process|communic|network|semiconduct|electronic/.test(s)) return 'text-[oklch(0.74_0.16_290)]'; // violet
+  if (/cement|building material|construc|homebuild|engineering/.test(s))  return 'text-[oklch(0.72_0.05_70)]';  // stone
+  if (/food|beverage|tobacco|agri|grain|mill|drug retail|sugar|dairy|livestock|tea/.test(s)) return 'text-[oklch(0.80_0.13_115)]'; // lime
+  if (/auto|vehicle|tyre|tire/.test(s))                                   return 'text-[oklch(0.78_0.12_200)]'; // cyan-blue
+  if (/textile|apparel|fabric|footwear|cloth|spinning|weaving|leather/.test(s)) return 'text-[oklch(0.74_0.13_350)]'; // pink
+  if (/pharma|health|medical|hospital|drug/.test(s))                      return 'text-[oklch(0.79_0.12_165)]'; // teal
+  if (/container|packag|paper|board|glass/.test(s))                       return 'text-[oklch(0.72_0.06_85)]';  // taupe
+  if (/transport|logistic|freight|airline|air transp|shipping|courier/.test(s)) return 'text-[oklch(0.74_0.10_250)]'; // sky
+  if (/cable|wire|steel|metal|iron|alumin/.test(s))                       return 'text-[oklch(0.70_0.08_45)]';  // bronze
+  if (/real estate|reit|property|hotel|entertainment/.test(s))            return 'text-[oklch(0.76_0.10_320)]'; // mauve
+  return 'text-warm-muted';
+}

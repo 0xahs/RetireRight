@@ -41,6 +41,21 @@ function pickCockpitStocks(stocks: StockSummaryDto[]): {
     .filter((s, i, arr) => arr.findIndex(x => x.symbol === s.symbol) === i)
     .slice(0, 3);
 
+  // Top up to 3 distinct cards. Without this, a watchlist with no AVOID/REVIEW
+  // leaves slot2 empty and only 2 cards render. Fill from the verdict-ranked
+  // remainder (same priority order as the watchlist pulse).
+  if (cockpit.length < 3) {
+    const order: Record<Verdict, number> = { ACCUMULATE: 0, REVIEW: 1, AVOID: 2, WATCH: 3, HOLD: 4 };
+    const have = new Set(cockpit.map(s => s.symbol));
+    const fillers = [...stocks]
+      .filter(s => !have.has(s.symbol))
+      .sort((a, b) => (order[a.verdict] - order[b.verdict]) || ((b.compositeScore ?? 0) - (a.compositeScore ?? 0)));
+    for (const f of fillers) {
+      if (cockpit.length >= 3) break;
+      cockpit.push(f);
+    }
+  }
+
   const hasUrgent = avoids.length > 0 || reviews.length > 0 || accumulates.length > 0;
   return { cockpit, hasUrgent };
 }

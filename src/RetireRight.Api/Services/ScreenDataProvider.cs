@@ -36,6 +36,11 @@ public class ScreenDataProvider : IScreenDataProvider
                 .OrderByDescending(c => c.ComputedDate)
                 .FirstOrDefaultAsync(ct);
 
+            // Only screen stocks that actually have computed data — otherwise the
+            // results table fills with dataless rows (no metrics, no score).
+            if (computed is null || computed.Metrics is null || computed.Metrics.Count == 0)
+                continue;
+
             result.Add(new ScreenableStock
             {
                 Symbol = stock.Symbol,

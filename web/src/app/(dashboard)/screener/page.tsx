@@ -5,7 +5,7 @@ import { useScreenerPresets, useRunScreener } from '@/lib/api/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { formatPct, scoreTone, yieldTone, coverageTone } from '@/lib/utils/format';
+import { formatPct, scoreTone, yieldTone, coverageTone, sectorTone } from '@/lib/utils/format';
 import { FlagBadge } from '@/components/stock-ui';
 import type { ScreenerResultDto } from '@/lib/api/types';
 import { StockLogo } from '@/components/stock-logo';
@@ -158,7 +158,7 @@ export default function ScreenerPage() {
                           </div>
                         </Link>
                       </td>
-                      <td className="px-3 py-2 text-[10px] uppercase tracking-[0.1em] text-warm-muted font-medium">{s.sector}</td>
+                      <td className={cn('px-3 py-2 text-[10px] uppercase tracking-[0.1em] font-medium', sectorTone(s.sector))}>{s.sector}</td>
                       <td className={cn('text-right px-3 py-2 font-bold', yieldTone(s.dividendYield))}>{formatPct(s.dividendYield)}</td>
                       <td className={cn('text-right px-3 py-2 font-bold', coverageTone(s.dividendCoverage))}>
                         {s.dividendCoverage != null ? `${s.dividendCoverage.toFixed(2)}X` : '—'}

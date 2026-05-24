@@ -1,5 +1,7 @@
 'use client';
 
+import type { ElementType } from 'react';
+import { TrendingUp, Minus, AlertTriangle, Ban, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Verdict } from '@/lib/api/types';
 
@@ -11,67 +13,70 @@ interface VerdictBadgeProps {
   filled?: boolean;
 }
 
-const VERDICT_CONFIG: Record<Verdict, { label: string; marker: string; color: string; filled: string }> = {
+const VERDICT_CONFIG: Record<Verdict, { label: string; Icon: ElementType; color: string; filled: string }> = {
   ACCUMULATE: {
     label: 'ACCUMULATE',
-    marker: '▲',
+    Icon: TrendingUp,
     color: 'text-cyan-pos border-current',
-    filled: 'bg-[oklch(0.79_0.13_180_/_15%)] text-cyan-pos border-[oklch(0.79_0.13_180_/_40%)]',
+    filled: 'bg-[oklch(0.79_0.13_180_/_12%)] text-cyan-pos border-[oklch(0.79_0.13_180_/_35%)]',
   },
   HOLD: {
     label: 'HOLD',
-    marker: '◆',
+    Icon: Minus,
     color: 'text-warm-muted border-current',
     filled: 'bg-white/[0.04] text-warm-muted border-border',
   },
   REVIEW: {
     label: 'REVIEW',
-    marker: '!',
+    Icon: AlertTriangle,
     color: 'text-amber border-current',
-    filled: 'bg-[oklch(0.78_0.16_75_/_15%)] text-amber border-[oklch(0.78_0.16_75_/_40%)]',
+    filled: 'bg-[oklch(0.78_0.16_75_/_12%)] text-amber border-[oklch(0.78_0.16_75_/_35%)]',
   },
   AVOID: {
     label: 'AVOID',
-    marker: '✕',
+    Icon: Ban,
     color: 'text-warn border-current',
-    filled: 'bg-[oklch(0.68_0.22_25_/_15%)] text-warn border-[oklch(0.68_0.22_25_/_40%)]',
+    filled: 'bg-[oklch(0.68_0.22_25_/_12%)] text-warn border-[oklch(0.68_0.22_25_/_35%)]',
   },
   WATCH: {
     label: 'WATCH',
-    marker: '◐',
+    Icon: Eye,
     color: 'text-[oklch(0.72_0.10_230)] border-current',
-    filled: 'bg-[oklch(0.72_0.10_230_/_15%)] text-[oklch(0.72_0.10_230)] border-[oklch(0.72_0.10_230_/_40%)]',
+    filled: 'bg-[oklch(0.72_0.10_230_/_12%)] text-[oklch(0.72_0.10_230)] border-[oklch(0.72_0.10_230_/_35%)]',
   },
 };
 
-const SIZE_CLASSES = {
-  sm: 'text-[9px] px-1 py-[1px] gap-1',
-  md: 'text-[10px] px-1.5 py-[2px] gap-1',
-  lg: 'text-[11px] px-2 py-[3px] gap-1.5',
+// chip text/padding + matching icon px, kept in sync so the glyph optically centers
+const SIZE_CLASSES: Record<NonNullable<VerdictBadgeProps['size']>, { chip: string; icon: number }> = {
+  sm: { chip: 'text-[9px] px-1.5 py-[2px] gap-1',    icon: 10 },
+  md: { chip: 'text-[10px] px-2 py-[3px] gap-1.5',   icon: 11 },
+  lg: { chip: 'text-[11px] px-2.5 py-1 gap-1.5',     icon: 13 },
 };
 
 export function VerdictBadge({ verdict, size = 'md', className, filled = true }: VerdictBadgeProps) {
+  const sz = SIZE_CLASSES[size];
+
   if (!verdict) {
     return (
       <span className={cn(
-        'inline-flex items-center border bg-white/[0.02] text-warm-dim font-bold tracking-[0.18em] uppercase',
-        SIZE_CLASSES[size],
+        'inline-flex items-center border bg-white/[0.02] text-warm-dim font-bold tracking-[0.18em] uppercase leading-none',
+        sz.chip,
         className,
       )}>—</span>
     );
   }
 
-  const config = VERDICT_CONFIG[verdict];
+  const { label, Icon, color, filled: filledCls } = VERDICT_CONFIG[verdict];
 
   return (
     <span className={cn(
-      'inline-flex items-center border font-bold tracking-[0.15em] uppercase whitespace-nowrap rounded-none num',
-      SIZE_CLASSES[size],
-      filled ? config.filled : config.color,
+      'inline-flex items-center border font-bold tracking-[0.12em] uppercase whitespace-nowrap rounded-none leading-none num',
+      sz.chip,
+      filled ? filledCls : color,
       className,
     )}>
-      <span className="font-mono" aria-hidden>{config.marker}</span>
-      {config.label}
+      <Icon size={sz.icon} strokeWidth={2.5} className="shrink-0 -ml-0.5" aria-hidden />
+      <span className="relative top-px">{label}</span>
     </span>
   );
 }

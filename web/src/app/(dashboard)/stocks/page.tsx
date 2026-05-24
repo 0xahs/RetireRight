@@ -5,22 +5,7 @@ import Link from 'next/link';
 import { useAllStocks, useSetWatchlist } from '@/lib/api/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-
-const SECTOR_COLORS: Record<string, string> = {
-  Banking: 'text-cyan-pos',
-  IslamicBanking: 'text-cyan-pos',
-  Energy: 'text-amber',
-  Fertilizer: 'text-[oklch(0.82_0.15_130)]',
-  Cement: 'text-warm-muted',
-  Technology: 'text-[oklch(0.75_0.18_280)]',
-  Power: 'text-amber',
-  Oil: 'text-amber',
-  Chemicals: 'text-[oklch(0.82_0.15_130)]',
-};
-
-function sectorColor(sector: string) {
-  return SECTOR_COLORS[sector] ?? 'text-warm-muted';
-}
+import { sectorTone } from '@/lib/utils/format';
 
 export default function StocksPage() {
   const { data: stocks, isLoading } = useAllStocks();
@@ -167,7 +152,7 @@ export default function StocksPage() {
                         {stock.name}
                       </Link>
                     </td>
-                    <td className={cn('px-3 py-2 font-medium', sectorColor(stock.sector))}>
+                    <td className={cn('px-3 py-2 font-medium', sectorTone(stock.sector))}>
                       {stock.sector}
                     </td>
                     <td className="px-3 py-2 text-center">
