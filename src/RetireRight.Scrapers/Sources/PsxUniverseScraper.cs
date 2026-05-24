@@ -30,6 +30,11 @@ public class PsxUniverseScraper : BaseScraper
     private readonly IPriceRepository _priceRepo;
     private Guid? _currentScrapeRunId;
 
+    // Symbols whose Dividends tab shows a future ex-date. Surfaced via GetFollowUp() so
+    // the orchestrator enqueues a per-stock StockAnalysisDividends pass for them, filling
+    // the calendar with correct per-event DPS without the user having to add each to watchlist.
+    private readonly List<string> _pendingDividendSymbols = [];
+
     public override ScrapingMethod Method => ScrapingMethod.Browser;
 
     public PsxUniverseScraper(
@@ -234,6 +239,12 @@ public class PsxUniverseScraper : BaseScraper
                                    ?? Cell(divRow, dividendsIdx, "Payout Frequency");
                         var ppy = PayoutsPerYear(freqRaw);
                         if (ppy.HasValue) data[FundamentalKeys.PayoutsPerYear] = ppy;
+
+                        // Record any stock with a future-dated ex-date — orchestrator will
+                        // enqueue a per-stock StockAnalysisDividends pass to fill correct DPS.
+                        var futureEx = ParseUsDate(Cell(divRow, dividendsIdx, "Ex-Div Date"));
+                        if (futureEx is { } fx && fx > today)
+                            _pendingDividendSymbols.Add(symbol);
                     }
 
                     var stock = await _stockRepo.GetBySymbolAsync(symbol, ct);
@@ -469,6 +480,29 @@ public class PsxUniverseScraper : BaseScraper
         "yearly"      => 1m,
         _             => null,
     };
+
+    /// <summary>StockAnalysis renders ex-dates as US-style "May 26, 2026".</summary>
+    private static DateOnly? ParseUsDate(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw) || raw is "-" or "N/A") return null;
+        return DateOnly.TryParseExact(
+                raw.Trim(),
+                ["MMM d, yyyy", "MMMM d, yyyy", "MMM dd, yyyy"],
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var d)
+            ? d : null;
+    }
+
+    /// <summary>Surface the universe's discoveries — orchestrator enqueues a per-stock
+    /// StockAnalysisDividends pass for any symbol whose Dividends tab shows a future
+    /// ex-date. Dedupe + cap at 50 to bound the follow-up scrape's runtime.</summary>
+    protected override (string? source, string[] symbols) GetFollowUp()
+    {
+        if (_pendingDividendSymbols.Count == 0) return (null, []);
+        var dedup = _pendingDividendSymbols.Distinct(StringComparer.OrdinalIgnoreCase).Take(50).ToArray();
+        return ("StockAnalysisDividends", dedup);
+    }
 
     public override async ValueTask DisposeAsync()
     {

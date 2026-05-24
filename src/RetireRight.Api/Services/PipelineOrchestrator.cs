@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using RetireRight.Api.Jobs;
 using RetireRight.Core.Configuration;
 using RetireRight.Core.DTOs;
 using RetireRight.Core.Interfaces;
@@ -29,6 +30,7 @@ public sealed class PipelineOrchestrator
     private readonly ScraperFactory _scraperFactory;
     private readonly EngineService _engine;
     private readonly IEnumerable<IExporter> _exporters;
+    private readonly PipelineJobService _jobService;
     private readonly RetireRightOptions _options;
     private readonly ILogger<PipelineOrchestrator> _logger;
 
@@ -44,6 +46,7 @@ public sealed class PipelineOrchestrator
         ScraperFactory scraperFactory,
         EngineService engine,
         IEnumerable<IExporter> exporters,
+        PipelineJobService jobService,
         IOptions<RetireRightOptions> options,
         ILogger<PipelineOrchestrator> logger)
     {
@@ -58,6 +61,7 @@ public sealed class PipelineOrchestrator
         _scraperFactory = scraperFactory;
         _engine = engine;
         _exporters = exporters;
+        _jobService = jobService;
         _options = options.Value;
         _logger = logger;
     }
@@ -92,6 +96,7 @@ public sealed class PipelineOrchestrator
                 SymbolCount = symbolsForRun
             }, ct);
 
+            ScrapeResult? result = null;
             try
             {
                 var request = new ScrapeRequest
@@ -103,7 +108,7 @@ public sealed class PipelineOrchestrator
                 // Emit pre-start progress so UI reflects "currently running" not "just finished".
                 onProgress?.Invoke(run.Source, 0, symbolsForRun);
 
-                var result = await scraper.ScrapeAsync(request, ct);
+                result = await scraper.ScrapeAsync(request, ct);
 
                 run.RecordsScraped = result.RecordsScraped;
                 run.RecordsFailed = result.RecordsFailed;
@@ -136,6 +141,19 @@ public sealed class PipelineOrchestrator
                         run.Id, ex.InnerException?.Message ?? ex.Message);
                 }
                 await scraper.DisposeAsync();
+            }
+
+            // Enqueue any follow-up the scraper requested (e.g. PsxUniverse asks for a
+            // per-stock StockAnalysisDividends pass on stocks with announced upcoming
+            // ex-dates that aren't in the watchlist). The new job goes to the back of
+            // the queue and runs after the current scrape pass completes.
+            if (result is { FollowUpSource: { Length: > 0 } followUp, FollowUpSymbols.Length: > 0 })
+            {
+                var followUpJob = new PipelineJob("scrape", result.FollowUpSymbols, "live", followUp);
+                _ = _jobService.TriggerAsync(followUpJob, ct);
+                _logger.LogInformation("[{Source}] enqueued follow-up: {NextSource} for {Count} symbol(s) — {Symbols}",
+                    run.Source, followUp, result.FollowUpSymbols.Length,
+                    string.Join(",", result.FollowUpSymbols.Take(8)));
             }
 
             results.Add(new ScrapeRunDto(

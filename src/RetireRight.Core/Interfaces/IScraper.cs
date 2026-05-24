@@ -32,4 +32,13 @@ public record ScrapeResult
     public int RecordsFailed { get; init; }
     public TimeSpan Duration { get; init; }
     public List<string> Errors { get; init; } = [];
+
+    /// <summary>
+    /// Optional follow-up scrape request the orchestrator should enqueue after this one.
+    /// Example: PsxUniverseScraper discovers stocks with future announced ex-dates that
+    /// aren't in the watchlist and asks for a per-stock StockAnalysisDividends pass on
+    /// just those symbols. Null source = no follow-up.
+    /// </summary>
+    public string? FollowUpSource { get; init; }
+    public string[] FollowUpSymbols { get; init; } = [];
 }

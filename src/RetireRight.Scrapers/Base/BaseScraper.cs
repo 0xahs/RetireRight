@@ -62,6 +62,7 @@ public abstract class BaseScraper : IScraper
 
         sw.Stop();
 
+        var (followUpSource, followUpSymbols) = GetFollowUp();
         var result = new ScrapeResult
         {
             Source = Source,
@@ -69,7 +70,9 @@ public abstract class BaseScraper : IScraper
             RecordsScraped = scraped,
             RecordsFailed = failed,
             Duration = sw.Elapsed,
-            Errors = errors
+            Errors = errors,
+            FollowUpSource = followUpSource,
+            FollowUpSymbols = followUpSymbols,
         };
 
         Logger.LogInformation(
@@ -81,6 +84,14 @@ public abstract class BaseScraper : IScraper
 
     protected abstract Task<(int scraped, int failed, List<string> errors)> ExecuteScrapeAsync(
         ScrapeRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Optional follow-up another scraper should run after this one — orchestrator picks
+    /// up the (source, symbols) tuple and enqueues a separate scrape job. Default = no follow-up.
+    /// Override in scrapers that discover work for other scrapers (e.g. PsxUniverse finds
+    /// stocks with announced ex-dates that StockAnalysisDividends needs to refine).
+    /// </summary>
+    protected virtual (string? source, string[] symbols) GetFollowUp() => (null, []);
 
     protected async Task ThrottleAsync(CancellationToken ct)
     {
