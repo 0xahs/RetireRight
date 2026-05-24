@@ -349,7 +349,17 @@ export default function StockPage() {
                           {d.dividendType}
                         </span>
                       </td>
-                      <td className="text-right px-2 py-2 text-foreground font-bold whitespace-nowrap">{formatRs(d.dps)}</td>
+                      <td className="text-right px-2 py-2 text-foreground font-bold whitespace-nowrap">
+                        <span className="inline-flex items-baseline gap-1.5">
+                          {formatRs(d.dps)}
+                          {d.isEstimated && (
+                            <span
+                              className="text-[8px] uppercase tracking-[0.15em] font-bold text-amber border border-amber/40 px-1 py-px"
+                              title="Estimated — exact value pending source update"
+                            >EST</span>
+                          )}
+                        </span>
+                      </td>
                       <td className="text-right px-4 py-2 text-warm-muted uppercase tracking-[0.05em]">
                         {d.paymentDate
                           ? new Date(d.paymentDate).toLocaleDateString('en-PK', { month: 'short', day: '2-digit', year: '2-digit' }).toUpperCase()

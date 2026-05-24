@@ -294,6 +294,12 @@ namespace RetireRight.Infrastructure.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("frequency");
 
+                    b.Property<bool>("IsEstimated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_estimated");
+
                     b.Property<DateOnly?>("PaymentDate")
                         .HasColumnType("date")
                         .HasColumnName("payment_date");

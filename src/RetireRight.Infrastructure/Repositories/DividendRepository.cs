@@ -59,6 +59,7 @@ public class DividendRepository : IDividendRepository
             existing.Percentage   = dividend.Percentage   ?? existing.Percentage;
             existing.Year         = dividend.Year         ?? existing.Year;
             existing.Frequency    = dividend.Frequency    ?? existing.Frequency;
+            existing.IsEstimated  = dividend.IsEstimated; // writer is authoritative for this flag
             existing.DividendType = dividend.DividendType;
             existing.Source       = dividend.Source;
             existing.ScrapeRunId  = dividend.ScrapeRunId;

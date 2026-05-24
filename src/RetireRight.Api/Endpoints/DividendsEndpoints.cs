@@ -33,7 +33,8 @@ public static class DividendsEndpoints
                 LastBuyDate: d.ExDate.AddDays(-1),
                 PaymentDate: d.PaymentDate,
                 Dps: d.Dps,
-                DaysUntilEx: d.ExDate.DayNumber - today.DayNumber))
+                DaysUntilEx: d.ExDate.DayNumber - today.DayNumber,
+                IsEstimated: d.IsEstimated))
             .OrderBy(d => d.DaysUntilEx)
             .ToArray();
 

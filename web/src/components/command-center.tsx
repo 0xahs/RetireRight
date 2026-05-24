@@ -334,7 +334,15 @@ function UpcomingDividendsWidget() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-foreground text-[12px]">{formatRs(d.dps)}</div>
+                  <div className="font-bold text-foreground text-[12px] inline-flex items-baseline gap-1.5">
+                    {formatRs(d.dps)}
+                    {d.isEstimated && (
+                      <span
+                        className="text-[8px] uppercase tracking-[0.15em] font-bold text-amber border border-amber/40 px-1 py-px"
+                        title="Estimated — pending source update"
+                      >EST</span>
+                    )}
+                  </div>
                   <div className={cn('text-[9px] uppercase tracking-[0.15em] font-bold mt-0.5', tone)}>
                     {urgent ? '⚠ URGENT' : soon ? '◐ SOON' : `${d.daysUntilEx}D AWAY`}
                   </div>

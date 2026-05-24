@@ -7,7 +7,10 @@ public record DividendSummaryDto(
     decimal? Percentage,
     string DividendType,
     string? Year,
-    string Source);
+    string Source,
+    /// <summary>True when the DPS is a scraper estimate (info-card-only announcement
+    /// whose history-table row hasn't been published yet by the source).</summary>
+    bool IsEstimated);
 
 public record UpcomingDividendDto(
     string Symbol,
@@ -19,4 +22,6 @@ public record UpcomingDividendDto(
     DateOnly LastBuyDate,
     DateOnly? PaymentDate,
     decimal Dps,
-    int DaysUntilEx);
+    int DaysUntilEx,
+    /// <summary>True when the DPS is a scraper estimate; UI renders an "EST" badge.</summary>
+    bool IsEstimated);

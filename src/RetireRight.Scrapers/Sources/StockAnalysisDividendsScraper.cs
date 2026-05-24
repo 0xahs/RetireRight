@@ -110,6 +110,7 @@ public class StockAnalysisDividendsScraper : BaseScraper
                         PaymentDate  = row.PaymentDate,
                         Dps          = row.Dps,
                         DividendType = "regular",
+                        IsEstimated  = row.IsEstimated,
                         Source       = Source,
                         ScrapeRunId  = _currentScrapeRunId,
                     }, ct);
@@ -248,7 +249,8 @@ public class StockAnalysisDividendsScraper : BaseScraper
                         ExDate:      futureEx,
                         Dps:         estimatedDps,
                         RecordDate:  null,
-                        PaymentDate: null));
+                        PaymentDate: null,
+                        IsEstimated: true));
                     Logger.LogInformation(
                         "[StockAnalysisDividends] {Symbol}: history table stale; added info-card row {Date} (estimated DPS={Dps} from last paid)",
                         symbol, futureEx, estimatedDps);
@@ -301,5 +303,6 @@ public class StockAnalysisDividendsScraper : BaseScraper
         DateOnly ExDate,
         decimal Dps,
         DateOnly? RecordDate,
-        DateOnly? PaymentDate);
+        DateOnly? PaymentDate,
+        bool IsEstimated = false);
 }

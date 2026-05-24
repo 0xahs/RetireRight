@@ -270,6 +270,8 @@ export interface DividendSummaryDto {
   paymentDate: string | null;
   daysUntilEx: number;
   year: string | null;
+  /** True when DPS is a scraper estimate — UI shows an "EST" badge. */
+  isEstimated: boolean;
 }
 
 export interface UpcomingDividendDto {
@@ -280,6 +282,8 @@ export interface UpcomingDividendDto {
   lastBuyDate: string;
   daysUntilEx: number;
   paymentDate: string | null;
+  /** True when DPS is a scraper estimate — UI shows an "EST" badge. */
+  isEstimated: boolean;
 }
 
 // ── Sectors ───────────────────────────────────────────────────────────────────

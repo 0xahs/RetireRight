@@ -103,6 +103,7 @@ public class RetireRightDbContext : DbContext
             e.Property(d => d.Year).HasColumnName("year").HasMaxLength(10);
             e.Property(d => d.DividendType).HasColumnName("dividend_type").HasMaxLength(20);
             e.Property(d => d.Frequency).HasColumnName("frequency").HasMaxLength(20);
+            e.Property(d => d.IsEstimated).HasColumnName("is_estimated").HasDefaultValue(false);
             e.Property(d => d.Source).HasColumnName("source").HasMaxLength(50);
             e.Property(d => d.ScrapeRunId).HasColumnName("scrape_run_id");
             e.Property(d => d.CreatedAt).HasColumnName("created_at");

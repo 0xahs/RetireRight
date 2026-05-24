@@ -150,7 +150,7 @@ public static class StocksEndpoints
             .OrderByDescending(d => d.ExDate)
             .Take(20)
             .Select(d => new DividendSummaryDto(
-                d.ExDate, d.PaymentDate, d.Dps, d.Percentage, d.DividendType, d.Year, d.Source))
+                d.ExDate, d.PaymentDate, d.Dps, d.Percentage, d.DividendType, d.Year, d.Source, d.IsEstimated))
             .ToArray();
 
         var pricePoints = priceHistory
@@ -216,7 +216,7 @@ public static class StocksEndpoints
         var result = dividends
             .OrderByDescending(d => d.ExDate)
             .Select(d => new DividendSummaryDto(
-                d.ExDate, d.PaymentDate, d.Dps, d.Percentage, d.DividendType, d.Year, d.Source))
+                d.ExDate, d.PaymentDate, d.Dps, d.Percentage, d.DividendType, d.Year, d.Source, d.IsEstimated))
             .ToArray();
 
         return Results.Ok(result);
