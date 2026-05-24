@@ -149,6 +149,32 @@ try
             Log.Information("Seeded Listings scraper config (type={Type})", listingsType);
         }
 
+        // Per-stock dividend history (multi-year, Ex/Cash/Record/Pay) from stockanalysis.com.
+        // Defaults to watchlist; ~30s/stock so a full-universe run is impractical.
+        var divHistType = typeof(RetireRight.Scrapers.Sources.StockAnalysisDividendsScraper)
+            .GetCustomAttributes(typeof(RetireRight.Core.Attributes.DataSourceAttribute), false)
+            .Cast<RetireRight.Core.Attributes.DataSourceAttribute>()
+            .First().Identifier;
+        var hasDivHist = (await configRepo.GetAllAsync()).Any(c => c.Type == divHistType);
+        if (!hasDivHist)
+        {
+            await configRepo.UpsertAsync(new DataSourceConfig
+            {
+                Name = "Dividends History",
+                Type = divHistType,
+                Description = "Per-stock dividend history (stockanalysis.com)",
+                BaseUrl = "https://stockanalysis.com/quote/psx/",
+                Enabled = true,
+                MaxRequestsPerMinute = 6,
+                MinDelayMs = 2000,
+                MaxDelayMs = 4000,
+                RetryMaxAttempts = 2,
+                RetryInitialDelayMs = 3000,
+                RetryBackoffMultiplier = 2.0,
+            });
+            Log.Information("Seeded Dividends History scraper config (type={Type})", divHistType);
+        }
+
         var orphaned = db.ScrapeRuns.Where(r => r.Status == "running").ToList();
         foreach (var run in orphaned)
         {
