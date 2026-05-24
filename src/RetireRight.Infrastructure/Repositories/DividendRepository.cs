@@ -29,7 +29,7 @@ public class DividendRepository : IDividendRepository
             .OrderByDescending(d => d.ExDate)
             .ToListAsync(ct);
 
-    public async Task UpsertAsync(Dividend dividend, CancellationToken ct = default)
+    public async Task UpsertAsync(Dividend dividend, CancellationToken ct = default, bool insertOnly = false)
     {
         var existing = await _db.Dividends
             .FirstOrDefaultAsync(d =>
@@ -40,6 +40,12 @@ public class DividendRepository : IDividendRepository
         {
             dividend.CreatedAt = DateTime.UtcNow;
             _db.Dividends.Add(dividend);
+        }
+        else if (insertOnly)
+        {
+            // Caller is a low-confidence seed (e.g. universe sweep with stale DPS).
+            // Leave the existing authoritative row alone.
+            return;
         }
         else
         {

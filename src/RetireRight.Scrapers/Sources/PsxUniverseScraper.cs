@@ -271,10 +271,11 @@ public class PsxUniverseScraper : BaseScraper
                             }, ct);
                         }
 
-                        // Forward-dated ex-date → calendar row. We deliberately skip past
-                        // ex-dates here — per-symbol scrapers (Sarmaaya/PsxTerminal) carry
-                        // the deeper history with payment/record dates. The merge upsert
-                        // means a later run with a fresh announcement updates the same row.
+                        // Forward-dated ex-date → seed a calendar row IF nothing better exists.
+                        // Universe DPS here is the *last paid* amount, not the announcement amount
+                        // (verified live for HCAR: universe shows 8.0, real announced is 9.0). So
+                        // we use insertOnly to seed when nothing's there, and let the per-stock
+                        // StockAnalysisDividends scraper own the authoritative DPS/Payment/Record.
                         if (exDate is { } ex && ex > today && exDateDps is { } dps && dps > 0)
                         {
                             await _dividendRepo.UpsertAsync(new Dividend
@@ -286,7 +287,7 @@ public class PsxUniverseScraper : BaseScraper
                                 DividendType = "regular",
                                 Source       = FundamentalsSource,
                                 ScrapeRunId  = _currentScrapeRunId,
-                            }, ct);
+                            }, ct, insertOnly: true);
                             dividendsConfirmedFuture++;
                         }
                     }
