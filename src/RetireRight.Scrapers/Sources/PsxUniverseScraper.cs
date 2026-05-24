@@ -27,6 +27,7 @@ public class PsxUniverseScraper : BaseScraper
     private readonly IStockRepository _stockRepo;
     private readonly IFundamentalsRepository _fundamentalsRepo;
     private readonly IPriceRepository _priceRepo;
+    private readonly IDividendRepository _dividendRepo;
     private Guid? _currentScrapeRunId;
 
     public override ScrapingMethod Method => ScrapingMethod.Browser;
@@ -38,12 +39,14 @@ public class PsxUniverseScraper : BaseScraper
         DataSourceOptions sourceConfig,
         IStockRepository stockRepo,
         IFundamentalsRepository fundamentalsRepo,
-        IPriceRepository priceRepo)
+        IPriceRepository priceRepo,
+        IDividendRepository dividendRepo)
         : base(logger, throttler, retryPolicy, sourceConfig)
     {
         _stockRepo = stockRepo;
         _fundamentalsRepo = fundamentalsRepo;
         _priceRepo = priceRepo;
+        _dividendRepo = dividendRepo;
     }
 
     protected override async Task<(int scraped, int failed, List<string> errors)> ExecuteScrapeAsync(
@@ -88,29 +91,34 @@ public class PsxUniverseScraper : BaseScraper
             var performance  = await ScrapeTabAsync(page, "Performance",  ct);
             var price        = await ScrapeTabAsync(page, "Price",        ct);
             var profile      = await ScrapeTabAsync(page, "Profile",      ct);
+            var dividends    = await ScrapeTabAsync(page, "Dividends",    ct);
 
-            Logger.LogInformation("[PsxUniverse] Rows — Overview:{O} Perf:{P} Price:{Pr} Profile:{Pf}",
-                overview.Count, performance.Count, price.Count, profile.Count);
+            Logger.LogInformation("[PsxUniverse] Rows — Overview:{O} Perf:{P} Price:{Pr} Profile:{Pf} Div:{D}",
+                overview.Count, performance.Count, price.Count, profile.Count, dividends.Count);
 
             // ── Map headers to column indices for each tab ────────
             var overviewIdx    = MapHeaders(overview);
             var performanceIdx = MapHeaders(performance);
             var priceIdx       = MapHeaders(price);
             var profileIdx     = MapHeaders(profile);
+            var dividendsIdx   = MapHeaders(dividends);
 
             // First row is headers, data starts at index 1
             var overviewRows    = overview.Skip(1).ToList();
             var performanceRows = performance.Skip(1).ToList();
             var priceRows       = price.Skip(1).ToList();
             var profileRows     = profile.Skip(1).ToList();
+            var dividendsRows   = dividends.Skip(1).ToList();
 
             // Index by symbol for O(1) merge
             var perfBySymbol    = IndexBySymbol(performanceRows, performanceIdx);
             var priceBySymbol   = IndexBySymbol(priceRows,       priceIdx);
             var profileBySymbol = IndexBySymbol(profileRows,     profileIdx);
+            var divBySymbol     = IndexBySymbol(dividendsRows,   dividendsIdx);
 
             var scraped = 0;
             var failed  = 0;
+            var dividendsConfirmedFuture = 0;
             var today   = DateOnly.FromDateTime(DateTime.UtcNow);
 
             foreach (var row in overviewRows)
@@ -209,6 +217,31 @@ public class PsxUniverseScraper : BaseScraper
                         TryAddNum(data, FundamentalKeys.FoundedYear, Cell(prfRow, profileIdx, "Founded"));
                     }
 
+                    // Dividends — fundamentals enrichment for all rows that have any data,
+                    // plus an upsert into the dividends table when the ex-date is in the future.
+                    DateOnly? exDate = null;
+                    decimal? exDateDps = null;
+                    string? exDateFrequency = null;
+                    if (divBySymbol.TryGetValue(symbol, out var divRow))
+                    {
+                        TryAddNum (data, FundamentalKeys.Dps,                  Cell(divRow, dividendsIdx, "Div. ($)"));
+                        TryAddPct (data, FundamentalKeys.DividendYieldPct,     Cell(divRow, dividendsIdx, "Div. Yield"));
+                        TryAddPct (data, FundamentalKeys.DividendPayoutRatio,  Cell(divRow, dividendsIdx, "Payout Ratio"));
+                        TryAddNum (data, FundamentalKeys.DividendPaymentYears, Cell(divRow, dividendsIdx, "Div. Payment Years")
+                                                                            ?? Cell(divRow, dividendsIdx, "Payment Years"));
+                        TryAddNum (data, FundamentalKeys.DividendGrowthYears,  Cell(divRow, dividendsIdx, "Div. Growth Years")
+                                                                            ?? Cell(divRow, dividendsIdx, "Growth Years"));
+
+                        var freqRaw = Cell(divRow, dividendsIdx, "Payout Freq.")
+                                   ?? Cell(divRow, dividendsIdx, "Payout Frequency");
+                        var ppy = PayoutsPerYear(freqRaw);
+                        if (ppy.HasValue) data[FundamentalKeys.PayoutsPerYear] = ppy;
+                        exDateFrequency = NormalizeFrequency(freqRaw);
+
+                        exDateDps = ParseNum(Cell(divRow, dividendsIdx, "Div. ($)"));
+                        exDate    = ParseUsDate(Cell(divRow, dividendsIdx, "Ex-Div Date"));
+                    }
+
                     var stock = await _stockRepo.GetBySymbolAsync(symbol, ct);
                     if (stock is not null)
                     {
@@ -237,6 +270,25 @@ public class PsxUniverseScraper : BaseScraper
                                 ScrapeRunId = _currentScrapeRunId
                             }, ct);
                         }
+
+                        // Forward-dated ex-date → calendar row. We deliberately skip past
+                        // ex-dates here — per-symbol scrapers (Sarmaaya/PsxTerminal) carry
+                        // the deeper history with payment/record dates. The merge upsert
+                        // means a later run with a fresh announcement updates the same row.
+                        if (exDate is { } ex && ex > today && exDateDps is { } dps && dps > 0)
+                        {
+                            await _dividendRepo.UpsertAsync(new Dividend
+                            {
+                                StockId      = stock.Id,
+                                ExDate       = ex,
+                                Dps          = dps,
+                                Frequency    = exDateFrequency,
+                                DividendType = "regular",
+                                Source       = FundamentalsSource,
+                                ScrapeRunId  = _currentScrapeRunId,
+                            }, ct);
+                            dividendsConfirmedFuture++;
+                        }
                     }
 
                     scraped++;
@@ -250,7 +302,8 @@ public class PsxUniverseScraper : BaseScraper
                 }
             }
 
-            Logger.LogInformation("[PsxUniverse] Done — {Scraped} upserted, {Failed} failed", scraped, failed);
+            Logger.LogInformation("[PsxUniverse] Done — {Scraped} upserted, {Failed} failed, {Div} future ex-dates queued",
+                scraped, failed, dividendsConfirmedFuture);
             return (scraped, failed, errors);
         }
         finally
@@ -428,6 +481,41 @@ public class PsxUniverseScraper : BaseScraper
             System.Globalization.CultureInfo.InvariantCulture, out var v)
             ? v : null;
     }
+
+    /// <summary>StockAnalysis renders ex-dates as US-style "May 26, 2026".</summary>
+    private static DateOnly? ParseUsDate(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw) || raw is "-" or "N/A") return null;
+        return DateOnly.TryParseExact(
+                raw.Trim(),
+                ["MMM d, yyyy", "MMMM d, yyyy", "MMM dd, yyyy"],
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var d)
+            ? d : null;
+    }
+
+    /// <summary>Payout-frequency text → payments per year (drives expected next ex-date forecasts).</summary>
+    private static decimal? PayoutsPerYear(string? raw) => (raw?.Trim().ToLowerInvariant()) switch
+    {
+        "monthly"     => 12m,
+        "quarterly"   => 4m,
+        "semi-annual" => 2m,
+        "semiannual"  => 2m,
+        "annual"      => 1m,
+        "yearly"      => 1m,
+        _             => null,
+    };
+
+    /// <summary>Canonical frequency string stored on Dividend.Frequency.</summary>
+    private static string? NormalizeFrequency(string? raw) => (raw?.Trim().ToLowerInvariant()) switch
+    {
+        "monthly"                  => "Monthly",
+        "quarterly"                => "Quarterly",
+        "semi-annual" or "semiannual" => "Semi-Annual",
+        "annual" or "yearly"       => "Annual",
+        _ => raw,
+    };
 
     public override async ValueTask DisposeAsync()
     {

@@ -75,6 +75,12 @@ public static class FundamentalKeys
     public const string EvToEbitda = "ev_to_ebitda";
     public const string DividendYieldPct = "dividend_yield_pct";
     public const string DividendPayoutRatio = "dividend_payout_ratio";
+    /// <summary>Payouts per year: 12 monthly, 4 quarterly, 2 semi-annual, 1 annual. Drives "expected next ex-date" forecasts.</summary>
+    public const string PayoutsPerYear = "payouts_per_year";
+    /// <summary>StockAnalysis "Dividend Payment Years" — consecutive-years streak proxy for a12.</summary>
+    public const string DividendPaymentYears = "dividend_payment_years";
+    /// <summary>StockAnalysis "Dividend Growth Years" — consecutive-growth streak proxy for a13.</summary>
+    public const string DividendGrowthYears = "dividend_growth_years";
     public const string RoePct = "roe_pct";
     public const string RoaPct = "roa_pct";
     public const string RoicPct = "roic_pct";

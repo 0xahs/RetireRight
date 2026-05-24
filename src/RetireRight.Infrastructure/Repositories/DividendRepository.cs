@@ -43,16 +43,20 @@ public class DividendRepository : IDividendRepository
         }
         else
         {
-            existing.RecordDate = dividend.RecordDate;
-            existing.PaymentDate = dividend.PaymentDate;
-            existing.Dps = dividend.Dps;
-            existing.Percentage = dividend.Percentage;
-            existing.Year = dividend.Year;
-            existing.Frequency = dividend.Frequency;
+            // Merge: a new row from one source must NOT null-out fields another source
+            // already populated. The universe scraper (StockAnalysisList) carries only
+            // ex_date + dps + frequency; the per-symbol scrapers (Sarmaaya/PsxTerminal)
+            // add payment_date and record_date. Whichever runs last shouldn't erase.
+            existing.RecordDate   = dividend.RecordDate   ?? existing.RecordDate;
+            existing.PaymentDate  = dividend.PaymentDate  ?? existing.PaymentDate;
+            existing.Dps          = dividend.Dps;  // always present
+            existing.Percentage   = dividend.Percentage   ?? existing.Percentage;
+            existing.Year         = dividend.Year         ?? existing.Year;
+            existing.Frequency    = dividend.Frequency    ?? existing.Frequency;
             existing.DividendType = dividend.DividendType;
-            existing.Source = dividend.Source;
-            existing.ScrapeRunId = dividend.ScrapeRunId;
-            existing.UpdatedAt = DateTime.UtcNow;
+            existing.Source       = dividend.Source;
+            existing.ScrapeRunId  = dividend.ScrapeRunId;
+            existing.UpdatedAt    = DateTime.UtcNow;
         }
 
         await _db.SaveChangesAsync(ct);
