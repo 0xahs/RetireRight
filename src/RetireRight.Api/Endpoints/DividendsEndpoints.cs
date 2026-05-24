@@ -30,6 +30,7 @@ public static class DividendsEndpoints
                 StockName: d.Stock.Name,
                 Sector: d.Stock.Sector,
                 ExDate: d.ExDate,
+                LastBuyDate: d.ExDate.AddDays(-1),
                 PaymentDate: d.PaymentDate,
                 Dps: d.Dps,
                 DaysUntilEx: d.ExDate.DayNumber - today.DayNumber))

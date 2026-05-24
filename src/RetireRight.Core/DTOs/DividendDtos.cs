@@ -14,6 +14,9 @@ public record UpcomingDividendDto(
     string StockName,
     string Sector,
     DateOnly ExDate,
+    /// <summary>Last calendar day a buy will make you eligible for the dividend
+    /// (PSX T+2 settlement → ExDate - 1). Same convention as BuildExportDataAsync.</summary>
+    DateOnly LastBuyDate,
     DateOnly? PaymentDate,
     decimal Dps,
     int DaysUntilEx);
