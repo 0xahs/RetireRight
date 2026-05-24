@@ -664,7 +664,7 @@ function RangeBar({ low, high, current }: { low: number; high: number; current: 
       <div className="flex items-center gap-3">
         <div className="text-right shrink-0">
           <div className="text-[9px] uppercase tracking-[0.12em] text-warm-dim font-bold">LOW</div>
-          <div className="num text-[11px] font-bold text-foreground">Rs.{low.toFixed(2)}</div>
+          <div className="num text-[11px] font-bold text-foreground">{formatRs(low)}</div>
         </div>
         <div className="flex-1 relative h-2">
           {/* track */}
@@ -682,12 +682,12 @@ function RangeBar({ low, high, current }: { low: number; high: number; current: 
         </div>
         <div className="shrink-0">
           <div className="text-[9px] uppercase tracking-[0.12em] text-warm-dim font-bold">HIGH</div>
-          <div className="num text-[11px] font-bold text-foreground">Rs.{high.toFixed(2)}</div>
+          <div className="num text-[11px] font-bold text-foreground">{formatRs(high)}</div>
         </div>
       </div>
       <div className="flex justify-center mt-2">
         <span className="num text-[10px] text-warm-muted font-bold">
-          Rs.{current.toFixed(2)} · {((current - low) / low * 100).toFixed(1)}% ABOVE LOW · {((current - high) / high * 100).toFixed(1)}% FROM HIGH
+          {formatRs(current)} · {((current - low) / low * 100).toFixed(1)}% ABOVE LOW · {((current - high) / high * 100).toFixed(1)}% FROM HIGH
         </span>
       </div>
     </div>

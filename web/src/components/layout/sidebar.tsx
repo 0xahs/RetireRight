@@ -4,26 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { BrandMark, BrandWordmark } from '@/components/brand/brand-mark';
-
-const NAV_ITEMS = [
-  { code: '01', href: '/dashboard',  label: 'Brief',       group: 'signal' },
-  { code: '02', href: '/watchlist',  label: 'Watchlist',   group: 'signal' },
-  { code: '03', href: '/screener',   label: 'Screener',    group: 'signal' },
-  { code: '04', href: '/compare',    label: 'Compare',     group: 'signal' },
-  { code: '05', href: '/sector',     label: 'Sectors',     group: 'signal' },
-  { code: '06', href: '/alerts',     label: 'Alerts',      group: 'signal' },
-  { code: '07', href: '/dividends',  label: 'Calendar',    group: 'data'   },
-  { code: '08', href: '/portfolio',  label: 'Portfolio',   group: 'data'   },
-  { code: '09', href: '/stocks',     label: 'Stocks',      group: 'admin'  },
-  { code: '10', href: '/pipeline',   label: 'Pipeline',    group: 'admin'  },
-  { code: '11', href: '/export',     label: 'Export',      group: 'admin'  },
-];
-
-const GROUP_LABELS: Record<string, string> = {
-  signal: 'SIGNAL',
-  data:   'DATA',
-  admin:  'INFRA',
-};
+import { NAV_ITEMS, NAV_GROUP_LABELS, type NavGroup } from '@/lib/nav';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -64,7 +45,7 @@ export function Sidebar() {
             <div className="px-3 pb-1.5 flex items-center gap-1.5">
               <span className="h-px w-3 bg-primary/40" />
               <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-amber">
-                {GROUP_LABELS[group]}
+                {NAV_GROUP_LABELS[group as NavGroup]}
               </span>
               <span className="h-px flex-1 bg-border" />
             </div>

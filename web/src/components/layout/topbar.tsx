@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { LogOut, Search } from 'lucide-react';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
 import { useMacro } from '@/lib/api/queries';
 import { useDocumentTitle } from '@/hooks/use-document-title';
+import { ROUTE_LABELS } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
 import {
@@ -17,17 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-const ROUTE_LABELS: Record<string, string> = {
-  '/dashboard':  'BRIEF',
-  '/watchlist':  'WATCHLIST',
-  '/screener':   'SCREENER',
-  '/compare':    'COMPARE',
-  '/dividends':  'CALENDAR',
-  '/portfolio':  'PORTFOLIO',
-  '/pipeline':   'PIPELINE',
-  '/export':     'EXPORT',
-};
 
 function usePageTitle(pathname: string): { section: string; page: string } {
   if (pathname.startsWith('/stock/')) {
@@ -151,10 +142,16 @@ function TickerSegment({ label, value, change }: { label: string; value: string 
 }
 
 function Clock() {
-  // Simple client clock — re-renders every minute
-  const now = new Date();
-  const time = now.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return <span className="text-[10px] text-foreground/80 font-semibold tabular-nums tracking-wider">{time}</span>;
+  // Client clock that actually ticks. Starts blank so server and first client
+  // render match (no hydration mismatch), then fills in and updates every 30s.
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const update = () => setTime(new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', hour12: false }));
+    update();
+    const id = setInterval(update, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return <span className="text-[10px] text-foreground/80 font-semibold tabular-nums tracking-wider">{time || '--:--'}</span>;
 }
 
 function fmtPct(v: number | null | undefined): string {

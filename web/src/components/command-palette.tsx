@@ -9,18 +9,8 @@ import { useRouter } from 'next/navigation';
 import { useStocks } from '@/lib/api/queries';
 import { cn } from '@/lib/utils';
 import { scoreTone, yieldTone } from '@/lib/utils/format';
+import { NAV_ITEMS, NAV_GROUP_LABELS } from '@/lib/nav';
 import type { Verdict } from '@/lib/api/types';
-
-const NAV_ITEMS: { code: string; label: string; href: string; group: string }[] = [
-  { code: '01', label: 'BRIEF',       href: '/dashboard', group: 'SIGNAL' },
-  { code: '02', label: 'WATCHLIST',   href: '/watchlist', group: 'SIGNAL' },
-  { code: '03', label: 'SCREENER',    href: '/screener',  group: 'SIGNAL' },
-  { code: '04', label: 'COMPARE',     href: '/compare',   group: 'SIGNAL' },
-  { code: '05', label: 'CALENDAR',    href: '/dividends', group: 'DATA' },
-  { code: '06', label: 'PORTFOLIO',   href: '/portfolio', group: 'DATA' },
-  { code: '07', label: 'PIPELINE',    href: '/pipeline',  group: 'INFRA' },
-  { code: '08', label: 'EXPORT',      href: '/export',    group: 'INFRA' },
-];
 
 const VERDICT_DOT: Record<Verdict, string> = {
   ACCUMULATE: 'bg-[oklch(0.79_0.13_180)]',
@@ -110,7 +100,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               {NAV_ITEMS.map((item) => (
                 <Command.Item
                   key={item.href}
-                  value={`${item.code} ${item.label} ${item.group}`}
+                  value={`${item.code} ${item.label.toUpperCase()} ${NAV_GROUP_LABELS[item.group]}`}
                   onSelect={() => navigate(item.href)}
                   className={cn(
                     'group flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors num',
@@ -128,13 +118,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     'text-[11px] uppercase tracking-[0.1em] font-bold flex-1',
                     'text-foreground/80 group-data-[selected=true]:text-amber',
                   )}>
-                    {item.label}
+                    {item.label.toUpperCase()}
                   </span>
                   <span className={cn(
                     'text-[8px] uppercase tracking-[0.18em] font-bold',
                     'text-warm-dim group-data-[selected=true]:text-amber/60',
                   )}>
-                    {item.group}
+                    {NAV_GROUP_LABELS[item.group]}
                   </span>
                   <span className={cn(
                     'text-amber text-[12px] opacity-0',
