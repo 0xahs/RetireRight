@@ -29,11 +29,14 @@ public class DividendRepository : IDividendRepository
             .OrderByDescending(d => d.ExDate)
             .ToListAsync(ct);
 
-    // Sources don't always agree on the canonical ex-date for the same dividend event
-    // — e.g. StockAnalysis records ATLH Jun 6 2025, PsxTerminal records Jun 5 2025 (same
-    // event, both have payment_date Jun 25). Treat any existing row within ±this many
-    // days for the same stock as the same event so we don't store duplicates.
-    private const int DateMatchWindowDays = 2;
+    // Sources don't always agree on the canonical ex-date for the same dividend event.
+    // Observed gaps (between PsxTerminal and StockAnalysisDividends for the same event):
+    //   ATLH 2025-06: 1 day  (PT Jun 5, SA Jun 6)
+    //   AABS 2026-05: 3 days (PT May 29, SA May 26)
+    // PT appears to record the book-closure start / record date; SA records the actual
+    // ex-trading date. ±3 covers both empirically and is still narrower than any real
+    // dividend cadence (monthly = 30d gap, the only one that gets close).
+    private const int DateMatchWindowDays = 3;
 
     public async Task UpsertAsync(Dividend dividend, CancellationToken ct = default, bool insertOnly = false)
     {
