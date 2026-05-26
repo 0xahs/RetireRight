@@ -8,7 +8,11 @@ public static class ScraperConfigEndpoints
 {
     public static void MapScraperConfigEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/scrapers").WithTags("Scrapers");
+        // Admin-only: scraper credentials and rate-limit config affect the shared
+        // pipeline. Non-admins should never see credential fields either.
+        var group = app.MapGroup("/api/scrapers")
+            .WithTags("Scrapers")
+            .RequireAuthorization("Admin");
 
         group.MapGet("/", GetAllAsync).WithName("GetScrapers");
         group.MapPatch("/{name}", PatchAsync).WithName("PatchScraper");

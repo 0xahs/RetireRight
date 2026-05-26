@@ -23,6 +23,9 @@ public class RetireRightDbContext : DbContext
     public DbSet<StockOwnership> StockOwnerships => Set<StockOwnership>();
     public DbSet<InsiderTransaction> InsiderTransactions => Set<InsiderTransaction>();
     public DbSet<DataSourceConfig> DataSourceConfigs => Set<DataSourceConfig>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<UserWatchlist> UserWatchlists => Set<UserWatchlist>();
+    public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
 
     // Npgsql's EnableDynamicJson() silently drops keys when deserializing JSONB → Dictionary<string, decimal?>.
     // These explicit converters use Newtonsoft.Json for reliable round-trip serialization.
@@ -200,6 +203,7 @@ public class RetireRightDbContext : DbContext
             e.ToTable("portfolio_holdings");
             e.HasKey(p => p.Id);
             e.Property(p => p.Id).HasColumnName("id");
+            e.Property(p => p.UserId).HasColumnName("user_id");
             e.Property(p => p.StockId).HasColumnName("stock_id");
             e.Property(p => p.Shares).HasColumnName("shares");
             e.Property(p => p.AvgCost).HasColumnName("avg_cost").HasPrecision(12, 2);
@@ -209,6 +213,8 @@ public class RetireRightDbContext : DbContext
             e.Property(p => p.CreatedAt).HasColumnName("created_at");
             e.Property(p => p.UpdatedAt).HasColumnName("updated_at");
             e.HasOne(p => p.Stock).WithMany().HasForeignKey(p => p.StockId);
+            e.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(p => p.UserId);
         });
 
         // PortfolioTransaction
@@ -217,6 +223,7 @@ public class RetireRightDbContext : DbContext
             e.ToTable("portfolio_transactions");
             e.HasKey(p => p.Id);
             e.Property(p => p.Id).HasColumnName("id");
+            e.Property(p => p.UserId).HasColumnName("user_id");
             e.Property(p => p.StockId).HasColumnName("stock_id");
             e.Property(p => p.Action).HasColumnName("action").HasMaxLength(10);
             e.Property(p => p.Shares).HasColumnName("shares");
@@ -228,6 +235,8 @@ public class RetireRightDbContext : DbContext
             e.Property(p => p.CreatedAt).HasColumnName("created_at");
             e.Property(p => p.UpdatedAt).HasColumnName("updated_at");
             e.HasOne(p => p.Stock).WithMany().HasForeignKey(p => p.StockId);
+            e.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(p => p.UserId);
         });
 
         // ScrapeRun
@@ -336,6 +345,54 @@ public class RetireRightDbContext : DbContext
             e.HasIndex(t => new { t.StockId, t.PersonName, t.TransactionDate, t.Action }).IsUnique();
             e.HasOne(t => t.Stock).WithMany().HasForeignKey(t => t.StockId);
             e.HasOne(t => t.ScrapeRun).WithMany().HasForeignKey(t => t.ScrapeRunId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // User
+        modelBuilder.Entity<User>(e =>
+        {
+            e.ToTable("users");
+            e.HasKey(u => u.Id);
+            e.Property(u => u.Id).HasColumnName("id");
+            e.Property(u => u.Email).HasColumnName("email").HasMaxLength(200).IsRequired();
+            e.Property(u => u.PasswordHash).HasColumnName("password_hash").HasMaxLength(255).IsRequired();
+            e.Property(u => u.IsAdmin).HasColumnName("is_admin");
+            e.Property(u => u.EmailVerifiedAt).HasColumnName("email_verified_at");
+            e.Property(u => u.CreatedAt).HasColumnName("created_at");
+            e.Property(u => u.UpdatedAt).HasColumnName("updated_at");
+            e.Property(u => u.LastLoginAt).HasColumnName("last_login_at");
+            e.Property(u => u.FailedLoginCount).HasColumnName("failed_login_count");
+            e.Property(u => u.LockedUntil).HasColumnName("locked_until");
+            e.HasIndex(u => u.Email).IsUnique();
+        });
+
+        // UserWatchlist — per-user personal watchlist (distinct from stocks.is_watchlist
+        // which is the OPERATIONAL flag the pipeline scrapes against).
+        modelBuilder.Entity<UserWatchlist>(e =>
+        {
+            e.ToTable("user_watchlists");
+            e.HasKey(w => w.Id);
+            e.Property(w => w.Id).HasColumnName("id");
+            e.Property(w => w.UserId).HasColumnName("user_id");
+            e.Property(w => w.StockId).HasColumnName("stock_id");
+            e.Property(w => w.CreatedAt).HasColumnName("created_at");
+            e.HasOne(w => w.User).WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(w => w.Stock).WithMany().HasForeignKey(w => w.StockId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(w => new { w.UserId, w.StockId }).IsUnique();
+        });
+
+        // EmailVerificationToken — short-lived signed-up-but-unverified marker.
+        modelBuilder.Entity<EmailVerificationToken>(e =>
+        {
+            e.ToTable("email_verification_tokens");
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Id).HasColumnName("id");
+            e.Property(t => t.UserId).HasColumnName("user_id");
+            e.Property(t => t.Token).HasColumnName("token").HasMaxLength(128).IsRequired();
+            e.Property(t => t.ExpiresAt).HasColumnName("expires_at");
+            e.Property(t => t.UsedAt).HasColumnName("used_at");
+            e.Property(t => t.CreatedAt).HasColumnName("created_at");
+            e.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(t => t.Token).IsUnique();
         });
     }
 }

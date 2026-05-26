@@ -12,7 +12,9 @@ public static class PortfolioEndpoints
 {
     public static void MapPortfolioEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/portfolio").WithTags("Portfolio");
+        var group = app.MapGroup("/api/portfolio")
+            .WithTags("Portfolio")
+            .RequireAuthorization();
 
         group.MapGet("/holdings", GetHoldingsAsync).WithName("GetPortfolioHoldings");
         group.MapGet("/transactions", GetTransactionsAsync).WithName("GetPortfolioTransactions");
@@ -26,10 +28,12 @@ public static class PortfolioEndpoints
 
     private static async Task<IResult> GetHoldingsAsync(
         IPortfolioRepository portfolioRepo,
+        ICurrentUserAccessor currentUser,
         RetireRightDbContext db,
         CancellationToken ct)
     {
-        var holdings = await portfolioRepo.GetHoldingsAsync(ct);
+        var userId = currentUser.RequireUserId();
+        var holdings = await portfolioRepo.GetHoldingsAsync(userId, ct);
         var result = new List<HoldingDto>();
 
         foreach (var h in holdings)
@@ -92,8 +96,10 @@ public static class PortfolioEndpoints
         string? symbol,
         IPortfolioRepository portfolioRepo,
         IStockRepository stockRepo,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
+        var userId = currentUser.RequireUserId();
         int? stockId = null;
         if (symbol is not null)
         {
@@ -102,7 +108,7 @@ public static class PortfolioEndpoints
             stockId = stock.Id;
         }
 
-        var transactions = await portfolioRepo.GetTransactionsAsync(stockId, ct);
+        var transactions = await portfolioRepo.GetTransactionsAsync(userId, stockId, ct);
         var result = transactions.Select(t => new TransactionDto(
             Id: t.Id,
             Symbol: t.Stock!.Symbol,
@@ -120,10 +126,12 @@ public static class PortfolioEndpoints
 
     private static async Task<IResult> GetSummaryAsync(
         IPortfolioRepository portfolioRepo,
+        ICurrentUserAccessor currentUser,
         RetireRightDbContext db,
         CancellationToken ct)
     {
-        var holdings = await portfolioRepo.GetHoldingsAsync(ct);
+        var userId = currentUser.RequireUserId();
+        var holdings = await portfolioRepo.GetHoldingsAsync(userId, ct);
         if (holdings.Count == 0)
             return Results.Ok(new PortfolioSummaryDto(0, 0, 0, 0, 0, 0, 0));
 
@@ -163,14 +171,16 @@ public static class PortfolioEndpoints
         decimal? budget,
         IStockRepository stockRepo,
         IPortfolioRepository portfolioRepo,
+        ICurrentUserAccessor currentUser,
         RetireRightDbContext db,
         CancellationToken ct)
     {
+        var userId = currentUser.RequireUserId();
         var b = budget is null or <= 0 ? 12_000m : budget.Value;
         var today = DateOnly.FromDateTime(DateTime.Now);
 
         // Portfolio sector weights — for concentration penalty
-        var holdings = await portfolioRepo.GetHoldingsAsync(ct);
+        var holdings = await portfolioRepo.GetHoldingsAsync(userId, ct);
         var sectorMarketValues = new Dictionary<string, decimal>();
         decimal portfolioMV = 0m;
         foreach (var h in holdings)
@@ -189,7 +199,8 @@ public static class PortfolioEndpoints
         decimal SectorWeight(string sector) =>
             portfolioMV > 0 ? sectorMarketValues.GetValueOrDefault(sector) / portfolioMV : 0m;
 
-        // Candidates = full watchlist
+        // Candidates = full OPERATIONAL watchlist (admin-curated, drives the pipeline).
+        // Could swap to per-user watchlist if the user wants to plan against their own picks.
         var stocks = await stockRepo.GetWatchlistAsync(ct);
         var candidates = new List<PlanGenerator.Candidate>();
 
@@ -235,11 +246,13 @@ public static class PortfolioEndpoints
         AddTransactionRequest request,
         IPortfolioRepository portfolioRepo,
         IStockRepository stockRepo,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
+        var userId = currentUser.RequireUserId();
         var symbol = request.Symbol.Trim().ToUpper();
         var stock = await stockRepo.GetBySymbolAsync(symbol, ct);
-        if (stock is null) return Results.NotFound($"Symbol '{symbol}' not found in watchlist");
+        if (stock is null) return Results.NotFound($"Symbol '{symbol}' not found");
 
         var action = request.Action.Trim().ToUpper();
         if (action is not ("BUY" or "SELL"))
@@ -253,6 +266,7 @@ public static class PortfolioEndpoints
 
         var tx = new PortfolioTransaction
         {
+            UserId = userId,
             StockId = stock.Id,
             Action = action,
             Shares = request.Shares,
@@ -265,9 +279,9 @@ public static class PortfolioEndpoints
 
         await portfolioRepo.AddTransactionAsync(tx, ct);
 
-        // Update holding
-        var existing = await portfolioRepo.GetHoldingsAsync(ct)
-            .ContinueWith(t => t.Result.FirstOrDefault(h => h.StockId == stock.Id), ct);
+        // Update holding for this user
+        var holdings = await portfolioRepo.GetHoldingsAsync(userId, ct);
+        var existing = holdings.FirstOrDefault(h => h.StockId == stock.Id);
 
         if (action == "BUY")
         {
@@ -275,6 +289,7 @@ public static class PortfolioEndpoints
             {
                 await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
                 {
+                    UserId = userId,
                     StockId = stock.Id,
                     Shares = request.Shares,
                     AvgCost = request.Price,
@@ -288,6 +303,7 @@ public static class PortfolioEndpoints
                 var newAvgCost = (existing.Shares * existing.AvgCost + request.Shares * request.Price) / newTotalShares;
                 await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
                 {
+                    UserId = userId,
                     StockId = stock.Id,
                     Shares = newTotalShares,
                     AvgCost = Math.Round(newAvgCost, 4),
@@ -305,12 +321,13 @@ public static class PortfolioEndpoints
             var remainingShares = existing.Shares - request.Shares;
             if (remainingShares == 0)
             {
-                await portfolioRepo.DeactivateHoldingAsync(existing.Id, ct);
+                await portfolioRepo.DeactivateHoldingAsync(userId, existing.Id, ct);
             }
             else
             {
                 await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
                 {
+                    UserId = userId,
                     StockId = stock.Id,
                     Shares = remainingShares,
                     AvgCost = existing.AvgCost,
@@ -330,14 +347,17 @@ public static class PortfolioEndpoints
         int id,
         UpdateHoldingRequest request,
         IPortfolioRepository portfolioRepo,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
-        var holdings = await portfolioRepo.GetHoldingsAsync(ct);
+        var userId = currentUser.RequireUserId();
+        var holdings = await portfolioRepo.GetHoldingsAsync(userId, ct);
         var holding = holdings.FirstOrDefault(h => h.Id == id);
         if (holding is null) return Results.NotFound();
 
         await portfolioRepo.UpsertHoldingAsync(new PortfolioHolding
         {
+            UserId = userId,
             StockId = holding.StockId,
             Shares = request.Shares,
             AvgCost = request.AvgCost,
@@ -351,9 +371,11 @@ public static class PortfolioEndpoints
     private static async Task<IResult> DeleteHoldingAsync(
         int id,
         IPortfolioRepository portfolioRepo,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
-        var deleted = await portfolioRepo.DeactivateHoldingAsync(id, ct);
+        var userId = currentUser.RequireUserId();
+        var deleted = await portfolioRepo.DeactivateHoldingAsync(userId, id, ct);
         return deleted ? Results.NoContent() : Results.NotFound();
     }
 }

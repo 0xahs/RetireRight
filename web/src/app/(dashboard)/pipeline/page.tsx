@@ -10,8 +10,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:59931';
-
 interface LiveProgress {
   jobType: string;
   source: string | null;
@@ -44,7 +42,9 @@ function usePipelineEvents(onEvent: (evt: { eventType: string; symbol?: string; 
   onEventRef.current = onEvent;
 
   useEffect(() => {
-    const es = new EventSource(`${API_URL}/api/pipeline/events`);
+    // Same-origin SSE — proxied through Next.js so the bearer token from the NextAuth
+    // session can be attached server-side (EventSource itself can't send headers).
+    const es = new EventSource('/api/pipeline/events');
     const handler = (e: MessageEvent) => {
       try { onEventRef.current(JSON.parse(e.data)); } catch {}
     };

@@ -2,13 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { BrandMark, BrandWordmark } from '@/components/brand/brand-mark';
 import { NAV_ITEMS, NAV_GROUP_LABELS, type NavGroup } from '@/lib/nav';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const grouped = NAV_ITEMS.reduce<Record<string, typeof NAV_ITEMS>>((acc, item) => {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.isAdmin === true;
+  const visibleItems = NAV_ITEMS.filter(i => !i.requiresAdmin || isAdmin);
+  const grouped = visibleItems.reduce<Record<string, typeof NAV_ITEMS>>((acc, item) => {
     (acc[item.group] ??= []).push(item);
     return acc;
   }, {});

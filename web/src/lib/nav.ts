@@ -9,6 +9,8 @@ export interface NavItem {
   href: string;
   label: string;
   group: NavGroup;
+  /** Hidden from non-admin users in the sidebar. The API still enforces auth on the route. */
+  requiresAdmin?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -20,9 +22,9 @@ export const NAV_ITEMS: NavItem[] = [
   { code: '06', href: '/alerts',    label: 'Alerts',    group: 'signal' },
   { code: '07', href: '/dividends', label: 'Calendar',  group: 'data'   },
   { code: '08', href: '/portfolio', label: 'Portfolio', group: 'data'   },
-  { code: '09', href: '/stocks',    label: 'Stocks',    group: 'admin'  },
-  { code: '10', href: '/pipeline',  label: 'Pipeline',  group: 'admin'  },
-  { code: '11', href: '/export',    label: 'Export',    group: 'admin'  },
+  { code: '09', href: '/stocks',    label: 'Stocks',    group: 'admin', requiresAdmin: true },
+  { code: '10', href: '/pipeline',  label: 'Pipeline',  group: 'admin', requiresAdmin: true },
+  { code: '11', href: '/export',    label: 'Export',    group: 'admin', requiresAdmin: true },
 ];
 
 export const NAV_GROUP_LABELS: Record<NavGroup, string> = {

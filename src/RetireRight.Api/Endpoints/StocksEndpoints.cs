@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RetireRight.Api.Mapping;
+using RetireRight.Api.Services;
 using RetireRight.Core.DTOs;
 using RetireRight.Core.Interfaces;
 using RetireRight.Infrastructure.Database;
@@ -15,15 +16,23 @@ public static class StocksEndpoints
 
         group.MapGet("/", GetWatchlistAsync)
             .WithName("GetWatchlist")
-            .WithSummary("Get all watchlist stocks with latest price and metrics");
+            .WithSummary("Get the current user's personal watchlist with latest price and metrics");
 
         group.MapGet("/all", GetAllStocksAsync)
             .WithName("GetAllStocks")
-            .WithSummary("Get all active stocks (lightweight — for configuration)");
+            .WithSummary("Get all active stocks (lightweight — for configuration). isWatchlist reflects the current user's personal watchlist.");
 
         group.MapPatch("/{symbol}/watchlist", PatchWatchlistAsync)
             .WithName("PatchWatchlist")
-            .WithSummary("Add or remove a stock from the watchlist");
+            .WithSummary("Add or remove a stock from the current user's personal watchlist");
+
+        // Admin-only: toggles the OPERATIONAL watchlist that drives the pipeline (which
+        // symbols the scrapers refresh on the daily cadence). Distinct from the per-user
+        // personal watchlist managed by PATCH /watchlist.
+        group.MapPatch("/{symbol}/operational-watchlist", PatchOperationalWatchlistAsync)
+            .WithName("PatchOperationalWatchlist")
+            .RequireAuthorization("Admin")
+            .WithSummary("ADMIN: add or remove a stock from the operational scrape queue");
 
         group.MapGet("/{symbol}", GetStockDetailAsync)
             .WithName("GetStockDetail")
@@ -52,11 +61,15 @@ public static class StocksEndpoints
 
     private static async Task<IResult> GetAllStocksAsync(
         IStockRepository stockRepo,
+        IUserWatchlistRepository userWatchlists,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
+        var userId = currentUser.RequireUserId();
         var stocks = await stockRepo.GetAllActiveAsync(ct);
+        var userWatch = (await userWatchlists.GetStockIdsAsync(userId, ct)).ToHashSet();
         var result = stocks.Select(s => new StockListItemDto(
-            s.Id, s.Symbol, s.Name, s.Sector, s.IsWatchlist, s.IsActive)).ToArray();
+            s.Id, s.Symbol, s.Name, s.Sector, userWatch.Contains(s.Id), s.IsActive)).ToArray();
         return Results.Ok(result);
     }
 
@@ -64,18 +77,40 @@ public static class StocksEndpoints
         string symbol,
         WatchlistPatchRequest req,
         IStockRepository stockRepo,
+        IUserWatchlistRepository userWatchlists,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
-        var found = await stockRepo.SetWatchlistAsync(symbol.ToUpper(), req.IsWatchlist, ct);
+        var userId = currentUser.RequireUserId();
+        var stock = await stockRepo.GetBySymbolAsync(symbol.ToUpper(), ct);
+        if (stock is null) return Results.NotFound();
+
+        var isCurrentlyIn = await userWatchlists.IsInWatchlistAsync(userId, stock.Id, ct);
+        if (req.IsWatchlist != isCurrentlyIn)
+        {
+            await userWatchlists.ToggleAsync(userId, stock.Id, ct);
+        }
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> PatchOperationalWatchlistAsync(
+        string symbol,
+        WatchlistPatchRequest req,
+        IStockRepository stockRepo,
+        CancellationToken ct)
+    {
+        var found = await stockRepo.SetOperationalWatchlistAsync(symbol.ToUpper(), req.IsWatchlist, ct);
         return found ? Results.NoContent() : Results.NotFound();
     }
 
     private static async Task<IResult> GetWatchlistAsync(
         RetireRightDbContext db,
-        IStockRepository stockRepo,
+        IUserWatchlistRepository userWatchlists,
+        ICurrentUserAccessor currentUser,
         CancellationToken ct)
     {
-        var stocks = await stockRepo.GetWatchlistAsync(ct);
+        var userId = currentUser.RequireUserId();
+        var stocks = await userWatchlists.GetStocksAsync(userId, ct);
         var result = new List<StockSummaryDto>();
 
         foreach (var stock in stocks)

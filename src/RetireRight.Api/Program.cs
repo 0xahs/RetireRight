@@ -1,4 +1,10 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using RetireRight.Api.Endpoints;
 using RetireRight.Api.Jobs;
 using RetireRight.Api.Services;
@@ -96,6 +102,74 @@ try
             .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()));
+
+    // ── Authentication (JWT bearer) ───────────────────────────────────────────
+    // JWT signing key MUST come from appsettings.local.json or env var; never committed.
+    var signingKey = rrOptions.Auth.JwtSigningKey;
+    if (string.IsNullOrWhiteSpace(signingKey) || signingKey.Length < 32)
+    {
+        throw new InvalidOperationException(
+            "RetireRight:Auth:JwtSigningKey must be set and at least 32 characters. " +
+            "Set it in appsettings.local.json or env var RETIRERIGHT_RetireRight__Auth__JwtSigningKey.");
+    }
+
+    builder.Services.AddSingleton<JwtTokenService>();
+    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+    builder.Services.AddScoped<RetireRight.Api.Services.ICurrentUserAccessor, RetireRight.Api.Services.CurrentUserAccessor>();
+    builder.Services.AddHttpContextAccessor();
+
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(opts =>
+        {
+            opts.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = rrOptions.Auth.Issuer,
+                ValidAudience = rrOptions.Auth.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+                ClockSkew = TimeSpan.FromSeconds(30),
+            };
+        });
+
+    // Fallback policy: every endpoint requires auth unless it explicitly opts out
+    // with [AllowAnonymous] / .AllowAnonymous(). /api/auth/login, /health, and the
+    // OpenAPI document are the only anonymous endpoints.
+    builder.Services.AddAuthorization(options =>
+    {
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+        options.AddPolicy("Admin", policy => policy
+            .RequireAuthenticatedUser()
+            .RequireClaim("is_admin", "true"));
+    });
+
+    // ── Rate limiting (bruteforce / abuse protection) ─────────────────────────
+    builder.Services.AddRateLimiter(opts =>
+    {
+        // login + change-password
+        opts.AddFixedWindowLimiter("login", o =>
+        {
+            o.PermitLimit = 5;
+            o.Window = TimeSpan.FromMinutes(5);
+            o.QueueLimit = 0;
+        });
+        // signup — per-IP, much tighter (3/hour) to discourage abuse of email sending
+        opts.AddPolicy("signup", httpContext =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anon",
+                factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 3,
+                    Window = TimeSpan.FromHours(1),
+                    QueueLimit = 0,
+                }));
+        opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    });
 
     // ── OpenAPI (dev only) ─────────────────────────────────────────────────────
     builder.Services.AddOpenApi();
@@ -227,18 +301,96 @@ try
             db.SaveChanges();
             Log.Warning("Marked {Count} orphaned scrape run(s) as failed on startup", orphaned.Count);
         }
+
+        // Seed the first user from InitialUser config if users table is empty.
+        // Idempotent: once a user exists, this block does nothing — the InitialUser block
+        // in appsettings.local.json can be removed after first boot.
+        var userRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        if (!await userRepo.AnyAsync())
+        {
+            var initial = rrOptions.InitialUser;
+            if (!string.IsNullOrWhiteSpace(initial.Email) && !string.IsNullOrWhiteSpace(initial.Password))
+            {
+                var hash = BCrypt.Net.BCrypt.HashPassword(initial.Password, workFactor: 12);
+                await userRepo.CreateAsync(new User
+                {
+                    Email = initial.Email.ToLowerInvariant(),
+                    PasswordHash = hash,
+                    IsAdmin = true,
+                    EmailVerifiedAt = DateTime.UtcNow,
+                });
+                Log.Warning("Seeded initial admin user {Email} (verified) from RetireRight:InitialUser. " +
+                            "Remove this block from appsettings.local.json once login is verified.",
+                            initial.Email);
+            }
+            else
+            {
+                Log.Warning("Users table is empty and no RetireRight:InitialUser config provided. " +
+                            "Login will fail until a user is seeded. Set Email/Password under " +
+                            "RetireRight:InitialUser in appsettings.local.json and restart.");
+            }
+        }
+
+        // Multi-user migration backfill — idempotent. Runs once per fresh boot to take
+        // pre-multi-user data and assign it to the first admin so it's not stranded.
+        var firstAdmin = await userRepo.GetFirstAdminAsync();
+        if (firstAdmin is not null)
+        {
+            // Promote the first user to admin retroactively if no admin exists yet but
+            // there's exactly one user (legacy single-user data).
+            if (!firstAdmin.IsAdmin)
+            {
+                firstAdmin.IsAdmin = true;
+                firstAdmin.EmailVerifiedAt ??= DateTime.UtcNow;
+                await userRepo.UpdateAsync(firstAdmin);
+                Log.Warning("Promoted user {UserId} to admin (legacy single-user backfill)", firstAdmin.Id);
+            }
+
+            // Backfill portfolio rows that predate the user_id column.
+            var orphanHoldings = await db.PortfolioHoldings.Where(h => h.UserId == null).ToListAsync();
+            foreach (var h in orphanHoldings) h.UserId = firstAdmin.Id;
+            var orphanTx = await db.PortfolioTransactions.Where(t => t.UserId == null).ToListAsync();
+            foreach (var t in orphanTx) t.UserId = firstAdmin.Id;
+            if (orphanHoldings.Count > 0 || orphanTx.Count > 0)
+            {
+                await db.SaveChangesAsync();
+                Log.Warning("Backfilled user_id on {Holdings} holdings + {Tx} transactions to admin user {UserId}",
+                    orphanHoldings.Count, orphanTx.Count, firstAdmin.Id);
+            }
+
+            // Seed the admin's personal watchlist from the operational watchlist on first
+            // boot only — once seeded, the user manages their watchlist via the UI.
+            var adminHasWatchlist = await db.UserWatchlists.AnyAsync(w => w.UserId == firstAdmin.Id);
+            if (!adminHasWatchlist)
+            {
+                var operationalIds = await db.Stocks.Where(s => s.IsWatchlist && s.IsActive)
+                    .Select(s => s.Id).ToListAsync();
+                if (operationalIds.Count > 0)
+                {
+                    db.UserWatchlists.AddRange(operationalIds.Select(id =>
+                        new RetireRight.Core.Models.UserWatchlist { UserId = firstAdmin.Id, StockId = id }));
+                    await db.SaveChangesAsync();
+                    Log.Warning("Seeded admin user {UserId} personal watchlist with {Count} stocks from operational",
+                        firstAdmin.Id, operationalIds.Count);
+                }
+            }
+        }
     }
 
     // ── Middleware ─────────────────────────────────────────────────────────────
     app.UseSerilogRequestLogging();
     app.UseCors();
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.UseRateLimiter();
 
     if (app.Environment.IsDevelopment())
     {
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
     }
 
     // ── Endpoints ─────────────────────────────────────────────────────────────
+    app.MapAuthEndpoints();
     app.MapStocksEndpoints();
     app.MapSectorsEndpoints();
     app.MapScreenerEndpoints();
@@ -249,9 +401,10 @@ try
     app.MapScraperConfigEndpoints();
     app.MapExportEndpoints();
 
-    // Health check
+    // Health check (anonymous — used by external monitors)
     app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
-        .WithTags("Health");
+        .WithTags("Health")
+        .AllowAnonymous();
 
     Log.Information("RetireRight API starting on {Urls}", string.Join(", ", builder.Configuration["Urls"] ?? "http://localhost:5000"));
     await app.RunAsync();

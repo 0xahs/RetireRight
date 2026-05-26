@@ -14,7 +14,13 @@ public static class PipelineEndpoints
 {
     public static void MapPipelineEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/pipeline").WithTags("Pipeline");
+        // Pipeline operations (scrape/compute/export + their status / events stream) are
+        // operational concerns that affect the shared dataset every other user reads from.
+        // Locked to admins so a random sign-up can't hammer the scrapers or trigger a
+        // recompute mid-day.
+        var group = app.MapGroup("/api/pipeline")
+            .WithTags("Pipeline")
+            .RequireAuthorization("Admin");
 
         group.MapGet("/status", GetStatusAsync).WithName("GetPipelineStatus");
         group.MapGet("/runs", GetRunsAsync).WithName("GetScrapeRuns");
@@ -23,7 +29,9 @@ public static class PipelineEndpoints
         group.MapPost("/export", TriggerExportAsync).WithName("TriggerExport");
         group.MapGet("/events", GetEventsAsync).WithName("PipelineEvents").ExcludeFromDescription();
 
-        var settingsGroup = app.MapGroup("/api/settings").WithTags("Settings");
+        var settingsGroup = app.MapGroup("/api/settings")
+            .WithTags("Settings")
+            .RequireAuthorization("Admin");
         settingsGroup.MapGet("/schedule", GetScheduleAsync).WithName("GetSchedule");
         settingsGroup.MapPut("/schedule", UpdateScheduleAsync).WithName("UpdateSchedule");
     }

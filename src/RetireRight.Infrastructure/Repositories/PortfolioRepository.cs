@@ -11,17 +11,19 @@ public class PortfolioRepository : IPortfolioRepository
 
     public PortfolioRepository(RetireRightDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<PortfolioHolding>> GetHoldingsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<PortfolioHolding>> GetHoldingsAsync(int userId, CancellationToken ct = default)
         => await _db.PortfolioHoldings
             .Include(h => h.Stock)
-            .Where(h => h.IsActive)
+            .Where(h => h.IsActive && h.UserId == userId)
             .OrderBy(h => h.Stock!.Symbol)
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<PortfolioTransaction>> GetTransactionsAsync(
-        int? stockId = null, CancellationToken ct = default)
+        int userId, int? stockId = null, CancellationToken ct = default)
     {
-        var q = _db.PortfolioTransactions.Include(t => t.Stock).AsQueryable();
+        var q = _db.PortfolioTransactions
+            .Include(t => t.Stock)
+            .Where(t => t.UserId == userId);
         if (stockId.HasValue)
             q = q.Where(t => t.StockId == stockId.Value);
         return await q.OrderByDescending(t => t.TransactionDate).ToListAsync(ct);
@@ -29,8 +31,11 @@ public class PortfolioRepository : IPortfolioRepository
 
     public async Task<PortfolioHolding> UpsertHoldingAsync(PortfolioHolding holding, CancellationToken ct = default)
     {
+        if (holding.UserId is null)
+            throw new ArgumentException("UserId is required on holdings.", nameof(holding));
+
         var existing = await _db.PortfolioHoldings
-            .FirstOrDefaultAsync(h => h.StockId == holding.StockId && h.IsActive, ct);
+            .FirstOrDefaultAsync(h => h.StockId == holding.StockId && h.UserId == holding.UserId && h.IsActive, ct);
 
         if (existing is null)
         {
@@ -52,14 +57,17 @@ public class PortfolioRepository : IPortfolioRepository
     public async Task<PortfolioTransaction> AddTransactionAsync(
         PortfolioTransaction tx, CancellationToken ct = default)
     {
+        if (tx.UserId is null)
+            throw new ArgumentException("UserId is required on transactions.", nameof(tx));
         _db.PortfolioTransactions.Add(tx);
         await _db.SaveChangesAsync(ct);
         return tx;
     }
 
-    public async Task<bool> DeactivateHoldingAsync(int holdingId, CancellationToken ct = default)
+    public async Task<bool> DeactivateHoldingAsync(int userId, int holdingId, CancellationToken ct = default)
     {
-        var holding = await _db.PortfolioHoldings.FindAsync([holdingId], ct);
+        var holding = await _db.PortfolioHoldings
+            .FirstOrDefaultAsync(h => h.Id == holdingId && h.UserId == userId, ct);
         if (holding is null) return false;
         holding.IsActive = false;
         holding.UpdatedAt = DateTime.UtcNow;

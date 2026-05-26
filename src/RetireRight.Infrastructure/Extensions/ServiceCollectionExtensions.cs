@@ -39,6 +39,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IComputedMetricsRepository, ComputedMetricsRepository>();
         services.AddScoped<IPortfolioRepository, PortfolioRepository>();
         services.AddScoped<IScraperConfigRepository, ScraperConfigRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUserWatchlistRepository, UserWatchlistRepository>();
+        services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
 
         return services;
     }

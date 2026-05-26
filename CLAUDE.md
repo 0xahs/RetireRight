@@ -55,7 +55,11 @@ dotnet ef database update --startup-project ../RetireRight.Api/RetireRight.Api.c
 dotnet ef migrations add <Name> --startup-project ../RetireRight.Api/RetireRight.Api.csproj
 ```
 
-Migrations applied: `AddFundamentalsOwnershipScrapeRuns`, `FundamentalsKeyBySource`. Tables: stocks, daily_prices, dividends, stock_fundamentals, stock_ownerships, insider_transactions, index_levels, computed_metrics, raw_responses, scrape_runs, portfolio_holdings, portfolio_transactions.
+Migrations applied: `AddFundamentalsOwnershipScrapeRuns`, `FundamentalsKeyBySource`, …, `AddUsersTable`, `AddMultiUserAndEmailVerification`. Tables: stocks, daily_prices, dividends, stock_fundamentals, stock_ownerships, insider_transactions, index_levels, computed_metrics, raw_responses, scrape_runs, portfolio_holdings (+ `user_id` FK), portfolio_transactions (+ `user_id` FK), users (+ `is_admin`, `email_verified_at`), user_watchlists, email_verification_tokens.
+
+**Two-watchlist model:**
+- `stocks.is_watchlist` — OPERATIONAL flag. Drives the pipeline (which symbols get scraped). Admin-managed via `PATCH /api/stocks/{symbol}/operational-watchlist` (admin-only).
+- `user_watchlists(user_id, stock_id)` — PERSONAL flag. Per-user UI watchlist. Toggle via `PATCH /api/stocks/{symbol}/watchlist`. Endpoints like `GET /api/stocks` return the *user's* personal watchlist; `isWatchlist` field in DTOs is per-user.
 
 `stock_fundamentals` unique key is `(StockId, Periodicity, Source)` — each scraper owns its own row per periodicity. Rows from different sources are merged at read time in `FundamentalsRepository.GetLatestAsync`.
 
@@ -115,7 +119,13 @@ When adding a screen that needs new data: add the DTO to `types.ts`, a hook to `
 
 Pages (`src/app/(dashboard)/`): `stocks`, `stock/[symbol]`, `screener`, `sector`, `dividends`, `watchlist`, `compare`, `portfolio` (+ `portfolio/plan` monthly planner), `alerts`, `export`, `pipeline`. Signal-grammar UI primitives (verdict badge, conviction dots, safety tier, why-line, ASU card) live in `src/components/signal/`.
 
-**Auth:** single-user credentials login (`AUTH_EMAIL`/`AUTH_PASSWORD` env vars checked in `src/auth.ts`); `proxy.ts` gates every route except `/login` and `/api/auth`. Env vars (`web/.env.local`, gitignored): `NEXT_PUBLIC_API_URL`, `AUTH_SECRET`, `AUTH_EMAIL`, `AUTH_PASSWORD`.
+**Auth:** multi-user with public sign-up + email verification. `src/auth.ts` calls the .NET API's `POST /api/auth/login`; the bearer token + role flags (`isAdmin`, `isEmailVerified`) are stashed in the NextAuth JWT (`jwt`/`session` callbacks in `src/auth.config.ts`). `src/lib/api/client.ts` attaches `Authorization: Bearer …` and auto-`signOut()` on 401 (except `/api/auth/change-password`). `proxy.ts` gates every route except `/login`, `/signup`, `/verify-email`, and `/api/auth/*`. The change-password UI lives at `/settings/security`. SSE uses a same-origin proxy route at `web/src/app/api/pipeline/events/route.ts` (EventSource can't send custom headers) — reads session server-side, forwards bearer.
+
+NextAuth Session/JWT are type-augmented in `web/src/types/next-auth.d.ts` with `accessToken`, `isAdmin`, `isEmailVerified` (renamed from `emailVerified` to avoid clashing with NextAuth's reserved `Date | null` AdapterUser field).
+
+Admin-only nav items (Stocks, Pipeline, Export) are hidden from non-admin users via `requiresAdmin` flag in `NAV_ITEMS` — the API also enforces an `Admin` policy on those routes so hiding nav isn't load-bearing for security.
+
+Env vars (`web/.env.local`, gitignored): `NEXT_PUBLIC_API_URL`, `AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXTAUTH_URL`. The old `AUTH_EMAIL` / `AUTH_PASSWORD` vars are no longer used — credentials live in the `users` table on the .NET side, hashed with bcrypt (work factor 12).
 
 ## Database
 
@@ -124,12 +134,16 @@ PostgreSQL (Supabase-hosted). Key tables: `stocks`, `daily_prices`, `dividends`,
 ## Configuration
 
 - `src/RetireRight.Api/appsettings.json` — defaults to **localhost** PostgreSQL (`retireright_dev`), export path, watchlist symbols. Credentials fields are **empty strings** — never commit real credentials here.
-- `src/RetireRight.Api/appsettings.local.json` — **gitignored**, contains real Sarmaaya credentials. Loaded as an optional layer over `appsettings.json`. Per-source credentials also live in the `data_source_configs` table (`credential_email`/`credential_password`) and can be updated via `PUT /api/scrapers/{name}/credentials`.
+- `src/RetireRight.Api/appsettings.local.json` — **gitignored**, contains real Sarmaaya credentials, the JWT signing key, and the bootstrap user. Loaded as an optional layer over `appsettings.json`. Per-source credentials also live in the `data_source_configs` table (`credential_email`/`credential_password`) and can be updated via `PUT /api/scrapers/{name}/credentials`.
 - For Supabase (production): set env var `RETIRERIGHT_RetireRight__Database__ConnectionString=<supabase_connection_string>`
 - JSONB columns (`Dictionary<string, decimal?>`) use explicit `HasConversion()` in DbContext — do NOT use `EnableDynamicJson()` (it silently drops keys on read)
 - Per-source `RateLimit` and `Retry` policies configured in `DataSources` array
-- Options pattern: `RetireRightOptions` → `DatabaseOptions`, `ExportOptions`, `WatchlistOptions`, `DataSourceOptions[]`, `PortfolioOptions`, `SchedulerOptions`
+- Options pattern: `RetireRightOptions` → `DatabaseOptions`, `ExportOptions`, `WatchlistOptions`, `DataSourceOptions[]`, `PortfolioOptions`, `SchedulerOptions`, `AuthOptions`, `InitialUserOptions`
 - `Scheduler` block (`DailyRunTime`, `Enabled`, `Jobs`) drives `SchedulerService`; `Cors:AllowedOrigins` whitelists the web app origin
+- `Auth.JwtSigningKey` (required, ≥32 chars) signs the bearer tokens issued by `POST /api/auth/login`. Set in `appsettings.local.json` or env var `RETIRERIGHT_RetireRight__Auth__JwtSigningKey`. Other `Auth` knobs: `TokenLifetimeDays` (30), `LockoutMaxAttempts` (5), `LockoutDurationMinutes` (15), `AppBaseUrl` (used in verification email links), `AllowPublicSignup` (toggle public registration), `EmailVerificationTtlHours` (24).
+- `Email.SmtpHost/SmtpPort/SmtpUsername/SmtpPassword/FromAddress/FromName/UseSsl/Enabled` configures the verification-email transport via MailKit. When `Enabled=false` (default), signup still creates the user but logs the verification URL instead of sending mail — handy for local dev.
+- `InitialUser.Email` / `InitialUser.Password` seed the first user row on startup if the `users` table is empty. First user is auto-promoted to admin and auto-email-verified. Once seeded, the block can be removed.
+- **Admin policy:** `Pipeline`, `Scheduler`, `Scrapers`, `Export`, and the operational-watchlist endpoint all require the `Admin` policy (JWT claim `is_admin=true`). Non-admins get 403. Per-user data (`Portfolio`, personal watchlist, `/api/stocks`) is scoped by JWT `sub` claim via `ICurrentUserAccessor`.
 
 ## DI Lifetimes
 
@@ -269,6 +283,20 @@ This tool is built for **Ahmad Hasan Sahi** — a middle-class Pakistani softwar
 - [ ] Test suite
 - [ ] Error recovery and logging improvements
 - [ ] Performance optimization for batch scraping
+
+**Auth (cross-cutting)**
+- [x] JWT bearer auth on all .NET endpoints (`AuthEndpoints.cs`, `JwtTokenService`, `FallbackPolicy = RequireAuthenticatedUser`)
+- [x] BCrypt password hashing (`users` table, work factor 12)
+- [x] Failed-login lockout (5 attempts → 15 min) + per-IP rate limit on `/api/auth/login` (5/5min) and `/api/auth/signup` (3/hour)
+- [x] NextAuth → `/api/auth/login`; bearer attached by `client.ts`; SSE proxied via `app/api/pipeline/events/route.ts`
+- [x] Logout + change-password UI (topbar menu, `/settings/security`)
+- [x] Public sign-up + email verification (`/signup`, `/verify-email`, MailKit SMTP via `IEmailService`)
+- [x] Multi-user data isolation: `user_id` FK on portfolio tables, per-user `user_watchlists` (operational watchlist stays admin-managed)
+- [x] Admin policy + sidebar gating for pipeline/scraper-configs/export/operational-watchlist
+- [ ] 2FA / TOTP enrollment + verify step
+- [ ] Email-based password reset
+- [ ] HTTPS / reverse-proxy hardening (Caddy or Nginx) before any public deployment
+- [ ] Admin-only "users" management page (list users, revoke, promote)
 
 ## How to Add a New Scraper
 

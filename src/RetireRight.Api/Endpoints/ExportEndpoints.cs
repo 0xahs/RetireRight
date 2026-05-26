@@ -10,7 +10,11 @@ public static class ExportEndpoints
 {
     public static void MapExportEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/export").WithTags("Export");
+        // Export is operational — admin only. Non-admins still see the rendered data
+        // through the regular per-page endpoints; the bulk export is for downstream tooling.
+        var group = app.MapGroup("/api/export")
+            .WithTags("Export")
+            .RequireAuthorization("Admin");
 
         group.MapGet("/latest", GetLatestExportAsync)
             .WithName("GetLatestExport");

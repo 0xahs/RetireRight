@@ -5,10 +5,33 @@ namespace RetireRight.Core.Interfaces;
 public interface IStockRepository
 {
     Task<Stock?> GetBySymbolAsync(string symbol, CancellationToken ct = default);
+    /// <summary>
+    /// OPERATIONAL watchlist — drives the pipeline (which symbols the scrapers refresh).
+    /// Admin-managed via <see cref="SetOperationalWatchlistAsync"/>. Separate from the
+    /// per-user UI watchlist (see <see cref="IUserWatchlistRepository"/>).
+    /// </summary>
     Task<IReadOnlyList<Stock>> GetWatchlistAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Stock>> GetAllActiveAsync(CancellationToken ct = default);
     Task<Stock> UpsertAsync(Stock stock, CancellationToken ct = default);
-    Task<bool> SetWatchlistAsync(string symbol, bool isWatchlist, CancellationToken ct = default);
+    Task<bool> SetOperationalWatchlistAsync(string symbol, bool isWatchlist, CancellationToken ct = default);
+}
+
+public interface IUserWatchlistRepository
+{
+    Task<IReadOnlyList<int>> GetStockIdsAsync(int userId, CancellationToken ct = default);
+    Task<IReadOnlyList<Stock>> GetStocksAsync(int userId, CancellationToken ct = default);
+    Task<bool> IsInWatchlistAsync(int userId, int stockId, CancellationToken ct = default);
+    /// <summary>Toggles a stock in the user's watchlist. Returns the resulting state.</summary>
+    Task<bool> ToggleAsync(int userId, int stockId, CancellationToken ct = default);
+    Task<int> CountAsync(int userId, CancellationToken ct = default);
+}
+
+public interface IEmailVerificationTokenRepository
+{
+    Task<EmailVerificationToken> CreateAsync(int userId, TimeSpan ttl, CancellationToken ct = default);
+    Task<EmailVerificationToken?> GetByTokenAsync(string token, CancellationToken ct = default);
+    Task MarkUsedAsync(int tokenId, CancellationToken ct = default);
+    Task InvalidateAllForUserAsync(int userId, CancellationToken ct = default);
 }
 
 public interface IPriceRepository

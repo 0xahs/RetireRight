@@ -3,6 +3,9 @@ namespace RetireRight.Core.Models;
 public class PortfolioHolding
 {
     public int Id { get; set; }
+    // Nullable in the schema during multi-user backfill; set NOT NULL once the startup
+    // bootstrap assigns the existing rows to the first admin user.
+    public int? UserId { get; set; }
     public int StockId { get; set; }
     public int Shares { get; set; }
     public decimal AvgCost { get; set; }
@@ -13,11 +16,13 @@ public class PortfolioHolding
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public Stock? Stock { get; set; }
+    public User? User { get; set; }
 }
 
 public class PortfolioTransaction
 {
     public int Id { get; set; }
+    public int? UserId { get; set; }
     public int StockId { get; set; }
     public required string Action { get; set; }
     public int Shares { get; set; }
@@ -30,4 +35,5 @@ public class PortfolioTransaction
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public Stock? Stock { get; set; }
+    public User? User { get; set; }
 }

@@ -10,6 +10,15 @@ public class RetireRightOptions
     public List<DataSourceOptions> DataSources { get; set; } = [];
     public PortfolioOptions Portfolio { get; set; } = new();
     public SchedulerOptions Scheduler { get; set; } = new();
+    public AuthOptions Auth { get; set; } = new();
+    public InitialUserOptions InitialUser { get; set; } = new();
+    public EmailOptions Email { get; set; } = new();
+}
+
+public class InitialUserOptions
+{
+    public string Email { get; set; } = "";
+    public string Password { get; set; } = "";
 }
 
 public class DatabaseOptions

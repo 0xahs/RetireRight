@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
-import { LogOut, Search } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
+import { Key, LogOut, Search } from 'lucide-react';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
 import { useMacro } from '@/lib/api/queries';
 import { useDocumentTitle } from '@/hooks/use-document-title';
@@ -28,6 +28,9 @@ function usePageTitle(pathname: string): { section: string; page: string } {
   if (pathname === '/portfolio/plan') {
     return { section: 'PORTFOLIO', page: 'MONTHLY PLAN' };
   }
+  if (pathname === '/settings/security') {
+    return { section: 'SETTINGS', page: 'SECURITY' };
+  }
   const label = ROUTE_LABELS[pathname] ?? 'RETIRERIGHT';
   return { section: '', page: label };
 }
@@ -37,6 +40,10 @@ export function Topbar() {
   const { section, page } = usePageTitle(pathname);
   const { open, setOpen } = useCommandPalette();
   const { data: macro } = useMacro();
+  const router = useRouter();
+  const { data: session } = useSession();
+  const email = session?.user?.email ?? '';
+  const handle = email ? email.split('@')[0].toUpperCase() : 'USR';
 
   // Tab title: "<section> · <page>" or just "<page>"
   const tabTitle = section ? `${section} · ${page}` : page;
@@ -93,19 +100,31 @@ export function Topbar() {
             <DropdownMenuTrigger className="flex items-center gap-2 h-6 px-2 border border-border/40 bg-card hover:border-primary/40 transition-colors cursor-pointer group outline-none">
               <span className="text-[9px] text-warm-dim font-bold uppercase tracking-[0.15em]">USR</span>
               <span className="text-[10px] font-semibold text-foreground/85 group-hover:text-foreground tracking-[0.05em]">
-                AHMAD
+                {handle}
               </span>
               <span className="text-[9px] text-warm-dim">▾</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48 rounded-none border-border bg-card">
+            <DropdownMenuContent align="end" className="min-w-56 rounded-none border-border bg-card">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>
                   <div className="flex flex-col gap-0.5 py-0.5">
-                    <span className="text-[12px] font-semibold text-foreground tracking-tight">Ahmad Sahi</span>
-                    <span className="text-[10px] text-warm-muted uppercase tracking-widest">PSX Investor · Filer</span>
+                    <span className="text-[11px] font-semibold text-foreground tracking-tight truncate">
+                      {email || 'Signed in'}
+                    </span>
+                    <span className="text-[10px] text-warm-muted uppercase tracking-widest">
+                      {session?.user?.isAdmin ? 'ADMIN' : 'PSX Investor · Filer'}
+                    </span>
                   </div>
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2 cursor-pointer text-[11px] uppercase tracking-wider"
+                onClick={() => router.push('/settings/security')}
+              >
+                <Key className="h-3 w-3" />
+                Change password
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
