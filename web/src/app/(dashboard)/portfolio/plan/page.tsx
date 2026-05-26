@@ -194,7 +194,7 @@ function PickCard({ pick, rank }: { pick: PlanPickDto; rank: number }) {
   return (
     <Link
       href={`/stock/${pick.symbol}`}
-      className="group block panel relative overflow-hidden hover:border-primary/40 transition-colors"
+      className="group panel relative overflow-hidden hover:border-primary/40 transition-colors flex flex-col h-full"
     >
       <span aria-hidden className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: verdictAccent }} />
 
@@ -207,7 +207,7 @@ function PickCard({ pick, rank }: { pick: PlanPickDto; rank: number }) {
         </span>
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3 flex-1">
         {/* Identity */}
         <div className="flex items-center gap-2.5">
           <StockLogo symbol={pick.symbol} size={28} />

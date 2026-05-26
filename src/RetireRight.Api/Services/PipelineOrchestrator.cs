@@ -115,7 +115,19 @@ public sealed class PipelineOrchestrator
                 run.Status = result.Success ? "completed" : "failed";
                 run.CompletedAt = DateTime.UtcNow;
                 // Whole-universe scrapers don't know their record count up-front — backfill.
-                if (!scraper.IsPerSymbol) run.SymbolCount = result.RecordsScraped;
+                // Per-symbol scrapers may also process more symbols than initially requested
+                // (e.g. PsxTerminal's homepage futureDividends widget pulls in non-watchlist
+                // symbols like AABS/ATLH/HCAR on top of the 8 watchlist tickers). Without this
+                // backfill the run-history row shows nonsense like "11/8".
+                if (!scraper.IsPerSymbol)
+                {
+                    run.SymbolCount = result.RecordsScraped;
+                }
+                else
+                {
+                    var actualProcessed = result.RecordsScraped + result.RecordsFailed;
+                    if (actualProcessed > run.SymbolCount) run.SymbolCount = actualProcessed;
+                }
 
                 var total = scraper.IsPerSymbol ? targetSymbols.Length : result.RecordsScraped;
                 onProgress?.Invoke(run.Source, result.RecordsScraped, total);
